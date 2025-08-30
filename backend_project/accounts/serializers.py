@@ -6,7 +6,7 @@ from django.contrib.auth.password_validation import validate_password
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email", "role"]
+        fields = ["id", "username", "email", "role", "is_active", "last_login", "date_joined"]
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
@@ -21,7 +21,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password": "Passwords must match"})
         return attrs
 
-    def create(self, validated_data):
-        validated_data.pop("password2")
-        user = User.objects.create_user(**validated_data)
-        return user
+    class UserSerializer(serializers.ModelSerializer):
+        class Meta:
+            model = User
+            fields = ["id", "username", "email", "role"]

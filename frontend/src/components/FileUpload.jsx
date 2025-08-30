@@ -2,6 +2,7 @@
 import { useState } from "react";
 import api from "../api";
 import { toast } from "react-toastify";
+import "./styles/ClientDashboard.css"; 
 
 export default function FileUpload({ refreshFiles }) {
   const [file, setFile] = useState(null);
@@ -19,7 +20,7 @@ export default function FileUpload({ refreshFiles }) {
     try {
       await api.post("files/", formData, {
         headers: {
-          Authorization: `Bearer ${token}`, // only include Authorization
+          Authorization: `Bearer ${token}`,
         },
       });
       toast.success("File uploaded successfully!");
@@ -34,12 +35,23 @@ export default function FileUpload({ refreshFiles }) {
   };
 
   return (
-    <form onSubmit={handleUpload} style={{ marginBottom: "1rem" }}>
-      <input type="file" onChange={(e) => setFile(e.target.files[0])} />
-      <button type="submit" disabled={uploading}>
-        {uploading ? "Uploading..." : "Upload / Overwrite"}
-      </button>
-      {file && <p>Selected file: {file.name}</p>}
-    </form>
+    <div className="upload-card">
+      <h2 className="upload-title">Upload a File</h2>
+      <form onSubmit={handleUpload} className="upload-form">
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+          className="file-input"
+        />
+        <button
+          type="submit"
+          disabled={uploading}
+          className="upload-button"
+        >
+          {uploading ? "Uploading..." : "Upload / Overwrite"}
+        </button>
+      </form>
+      {file && <p className="selected-file">📂 {file.name}</p>}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 # files/serializers.py
 from rest_framework import serializers
-from .models import File
+from .models import File, AuditLog, SystemSettings
 
 class FileSerializer(serializers.ModelSerializer):
     owner = serializers.ReadOnlyField(source="owner.username")
@@ -14,3 +14,15 @@ class FileStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = File
         fields = ["status"] 
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    user = serializers.ReadOnlyField(source="user.username", read_only=True)
+    
+    class Meta:
+        model = AuditLog
+        fields = ["id", "user", "action", "timestamp"]
+
+class SystemSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemSettings
+        fields = ["id", "site_name", "max_file_size", "allowed_types"]

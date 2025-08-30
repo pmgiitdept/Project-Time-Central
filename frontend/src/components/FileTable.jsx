@@ -1,44 +1,77 @@
-// components/FileTable.jsx
 import { useEffect, useState } from "react";
 import api from "../api";
 import { toast } from "react-toastify";
+import "./styles/FileTable.css";
 
-export default function FileTable({ role, setSelectedFileId }) {
+export default function FileTable({ role, setSelectedFile }) {
   const [files, setFiles] = useState([]);
+  const [filteredFiles, setFilteredFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState({});
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
 
-  // Fetch files from backend
+  const [search, setSearch] = useState(""); // text search
+  const [dateFilter, setDateFilter] = useState(""); // YYYY-MM-DD, YYYY-MM, or YYYY
+
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const fetchFiles = async (url = "files/") => {
     setLoading(true);
     try {
-        const token = localStorage.getItem("access_token");
-        if (role === "client") {
+      const token = localStorage.getItem("access_token");
+      if (role === "client") {
         const username = localStorage.getItem("username");
         url += `?owner=${username}`;
-        }
+      }
 
-        const res = await api.get(url, { headers: { Authorization: `Bearer ${token}` } });
-        
-        setFiles(res.data.results || res.data);
-        setNextPage(res.data.next);
-        setPrevPage(res.data.previous);
-
+      const res = await api.get(url, { headers: { Authorization: `Bearer ${token}` } });
+      const fileList = res.data.results || res.data;
+      setFiles(fileList);
+      setFilteredFiles(fileList);
+      setNextPage(res.data.next);
+      setPrevPage(res.data.previous);
     } catch (err) {
-        console.error(err);
-        toast.error("Failed to fetch files");
+      console.error(err);
+      toast.error("Failed to fetch files");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-    };
+  };
 
   useEffect(() => {
     fetchFiles();
   }, []);
 
-  // Download a file
+  // Apply filters locally
+  useEffect(() => {
+    let tempFiles = [...files];
+
+    // Text search
+    if (search) {
+      tempFiles = tempFiles.filter((file) => {
+        const name = file.file.split("/").pop().toLowerCase();
+        const owner = (file.owner || "").toLowerCase();
+        const status = (file.status || "").toLowerCase();
+        const query = search.toLowerCase();
+        return name.includes(query) || owner.includes(query) || status.includes(query);
+      });
+    }
+
+    // Date filter using date picker
+    if (dateFilter) {
+      if (startDate) {
+        tempFiles = tempFiles.filter((file) => new Date(file.uploaded_at) >= new Date(startDate));
+      }
+      if (endDate) {
+        tempFiles = tempFiles.filter((file) => new Date(file.uploaded_at) <= new Date(endDate));
+      }
+    }
+
+    setFilteredFiles(tempFiles);
+  }, [search, dateFilter, files]);
+
   const handleDownload = async (fileId, fileName) => {
     setDownloadLoading((prev) => ({ ...prev, [fileId]: true }));
     try {
@@ -62,33 +95,60 @@ export default function FileTable({ role, setSelectedFileId }) {
     }
   };
 
-  // Update file status (admin & viewer)
   const handleStatusChange = async (fileId, newStatus) => {
     try {
-        const token = localStorage.getItem("access_token");
-        await api.patch(
-        `files/${fileId}/status/`, // <-- use the /status/ endpoint
+      const token = localStorage.getItem("access_token");
+      await api.patch(
+        `files/${fileId}/status/`,
         { status: newStatus },
-        {
-            headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            },
-        }
-        );
-        toast.success("Status updated successfully");
-        fetchFiles(); // refresh the table
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+      );
+      toast.success("Status updated successfully");
+      fetchFiles();
     } catch (err) {
-        console.error(err);
-        toast.error("Failed to update status");
+      console.error(err);
+      toast.error("Failed to update status");
     }
-    };
+  };
 
   if (loading) return <p>Loading files...</p>;
 
   return (
-    <div style={{ marginTop: "1rem" }}>
-      <table border="1" style={{ width: "100%", borderCollapse: "collapse" }}>
+    <div className="file-table-container">
+      {/* Filters */}
+      <div style={{ marginBottom: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        {/* Text Search */}
+        <input
+          type="text"
+          placeholder="Search by file, owner, status..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ padding: "0.4rem", width: "250px" }}
+        />
+
+        {/* Date Range */}
+        <label>
+          From: 
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{ padding: "0.4rem" }}
+          />
+        </label>
+        <label>
+          To: 
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            style={{ padding: "0.4rem" }}
+          />
+        </label>
+      </div>
+
+      {/* Table */}
+      <table className="file-table">
         <thead>
           <tr>
             <th>ID</th>
@@ -97,11 +157,11 @@ export default function FileTable({ role, setSelectedFileId }) {
             <th>Uploaded At</th>
             <th>Status</th>
             {(role === "admin" || role === "client") && <th>Actions</th>}
-            {role === "viewer" && <th>View</th>}
+            {(role === "admin" || role === "viewer") && <th>View</th>}
           </tr>
         </thead>
         <tbody>
-          {files.map((file) => (
+          {filteredFiles.map((file) => (
             <tr key={file.id}>
               <td>{file.id}</td>
               <td>{file.owner}</td>
@@ -112,25 +172,14 @@ export default function FileTable({ role, setSelectedFileId }) {
                   <select
                     value={file.status}
                     onChange={(e) => handleStatusChange(file.id, e.target.value)}
+                    className={`status-select ${file.status}`}
                   >
                     <option value="pending">Pending</option>
                     <option value="verified">Verified</option>
                     <option value="rejected">Rejected</option>
                   </select>
                 ) : (
-                  <span
-                    style={{
-                      padding: "0.2rem 0.5rem",
-                      borderRadius: "5px",
-                      backgroundColor:
-                        file.status === "pending"
-                          ? "#f0ad4e"
-                          : file.status === "verified"
-                          ? "#5cb85c"
-                          : "#d9534f",
-                      color: "#fff",
-                    }}
-                  >
+                  <span className={`status-badge status-${file.status}`}>
                     {file.status}
                   </span>
                 )}
@@ -138,18 +187,25 @@ export default function FileTable({ role, setSelectedFileId }) {
               {(role === "admin" || role === "client") && (
                 <td>
                   <button
-                    onClick={() =>
-                      handleDownload(file.id, file.file.split("/").pop())
-                    }
+                    className="action-btn download"
+                    onClick={() => handleDownload(file.id, file.file.split("/").pop())}
                     disabled={downloadLoading[file.id]}
                   >
                     {downloadLoading[file.id] ? "Downloading..." : "Download"}
                   </button>
                 </td>
               )}
-              {role === "viewer" && (
+              {(role === "admin" || role === "viewer") && (
                 <td>
-                  <button onClick={() => setSelectedFileId(file.id)}>
+                  <button
+                    className="action-btn view"
+                    onClick={() =>
+                      setSelectedFile({
+                        id: file.id,
+                        name: file.file.split("/").pop(),
+                      })
+                    }
+                  >
                     View Content
                   </button>
                 </td>
@@ -159,16 +215,15 @@ export default function FileTable({ role, setSelectedFileId }) {
         </tbody>
       </table>
 
-      <div style={{ marginTop: "1rem" }}>
-        {loading ? <p>Loading files...</p> : (
-            <>
-            <div style={{ marginTop: "1rem", display: "flex", justifyContent: "space-between" }}>
-                <button onClick={() => fetchFiles(prevPage)} disabled={!prevPage}>Previous</button>
-                <button onClick={() => fetchFiles(nextPage)} disabled={!nextPage}>Next</button>
-            </div>
-            </>
-        )}
-        </div>
+      {/* Pagination */}
+      <div className="pagination">
+        <button onClick={() => fetchFiles(prevPage)} disabled={!prevPage}>
+          Previous
+        </button>
+        <button onClick={() => fetchFiles(nextPage)} disabled={!nextPage}>
+          Next
+        </button>
+      </div>
     </div>
   );
 }
