@@ -12,6 +12,8 @@ class File(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=20, default="pending")  
 
+    parsed_content = models.JSONField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.file.name} ({self.owner.username})"
 

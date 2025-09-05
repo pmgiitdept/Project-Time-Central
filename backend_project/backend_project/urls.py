@@ -21,7 +21,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import HttpResponse
-from accounts.views import MyTokenObtainPairView
+from accounts.views import MyTokenObtainPairView, user_stats
+from files.views import file_stats
 
 def home(request):
     return HttpResponse("Project Time Central Backend is running!")
@@ -32,4 +33,6 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path('api/auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path("api/", include("files.urls")),
+    path("api/file-stats/", file_stats, name="file-stats"),
+    path("api/user-stats/", user_stats, name="user-stats"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

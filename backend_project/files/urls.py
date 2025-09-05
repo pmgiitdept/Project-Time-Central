@@ -7,6 +7,7 @@ from .views import (
     export_files_report,
     AuditLogViewSet,
     SystemSettingsViewSet,
+    file_stats,
 )
 
 router = DefaultRouter()
@@ -18,5 +19,6 @@ urlpatterns = [
     path("", include(router.urls)),
     path("dashboard-stats/", dashboard_stats, name="dashboard-stats"),
     path("files-report/", export_files_report, name="files-report"),
+    path("file-stats/", file_stats, name="file-stats"),
 ]
 

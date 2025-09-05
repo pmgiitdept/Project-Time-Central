@@ -11,6 +11,18 @@ import {
   FaTrash, 
   FaDownload 
 } from "react-icons/fa";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from "recharts";
 import FileTable from "../components/FileTable";
 import FileContent from "../components/FileContent";
 import LogoutButton from "../components/LogoutButton";
@@ -23,6 +35,8 @@ export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState("dashboard");
 
   const [stats, setStats] = useState({});
+  const [fileStats, setFileStats] = useState([]); 
+  const [userStats, setUserStats] = useState([]); 
   const [users, setUsers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [settings, setSettings] = useState({ maxFileSize: 50, allowedTypes: ["pdf", "docx"] });
@@ -30,6 +44,9 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [showAddUser, setShowAddUser] = useState(false);
+
+  const [fileTimeFilter, setFileTimeFilter] = useState("day");
+  const [userTimeFilter, setUserTimeFilter] = useState("day");
 
   const role = "admin";
 
@@ -41,6 +58,34 @@ export default function AdminDashboard() {
     { key: "reports", label: "Reports", icon: <FaChartBar /> },
     { key: "settings", label: "Settings", icon: <FaCog /> },
   ];
+  
+  const [timeFilter, setTimeFilter] = useState("monthly");
+
+  const fetchFileStats = async (period = "day") => {
+    try {
+      const response = await api.get(`/file-stats/?period=${period}`);
+      const formatted = response.data.map(item => ({
+        ...item,
+        period: new Date(item.period).toLocaleDateString(), 
+      }));
+      setFileStats(formatted);
+    } catch (error) {
+      console.error("Error fetching file stats:", error);
+    }
+  };
+
+  const fetchUserStats = async (period = "day") => {
+    try {
+      const response = await api.get(`/user-stats/?period=${period}`);
+      const formatted = response.data.map(item => ({
+        ...item,
+        period: new Date(item.period).toLocaleDateString(), 
+      }));
+      setUserStats(formatted);
+    } catch (error) {
+      console.error("Error fetching user stats:", error);
+    }
+  };
 
   const refreshLastLogin = () => {
     fetchUsers();
@@ -67,7 +112,6 @@ export default function AdminDashboard() {
       .catch(err => console.error("Error updating status:", err));
   };
 
-  // Fetch functions
   const fetchDashboardStats = async () => {
     try {
       const response = await api.get("/dashboard-stats/");
@@ -80,9 +124,8 @@ export default function AdminDashboard() {
   const fetchUsers = async () => {
     try {
       const response = await api.get("/auth/users/");
-      // Sort users by last_login descending
       const sortedUsers = response.data.sort((a, b) => {
-        if (!a.last_login) return 1;  // no last_login goes last
+        if (!a.last_login) return 1;  
         if (!b.last_login) return -1;
         return new Date(b.last_login) - new Date(a.last_login);
       });
@@ -109,15 +152,22 @@ export default function AdminDashboard() {
       console.error("Error fetching audit logs:", error);
     }
   };
-
+  
   useEffect(() => {
     fetchDashboardStats();
     fetchUsers();
     fetchSettings();
     fetchAuditLogs();
+    fetchFileStats("day");
   }, []);
 
-  // Users actions
+  useEffect(() => {
+    fetchUserStats(timeFilter);
+    if (timeFilter === "daily") fetchFileStats("day");
+    if (timeFilter === "weekly") fetchFileStats("week");
+    if (timeFilter === "monthly") fetchFileStats("month");
+  }, [timeFilter]);
+
   const deleteUser = (id) => {
     if (confirm("Are you sure you want to delete this user?")) {
       api.delete(`/auth/users/${id}/`)
@@ -142,14 +192,12 @@ export default function AdminDashboard() {
     }
   };
 
-  // Settings actions
   const updateSettings = () => {
     api.put("/files/settings/", settings)
       .then(() => alert("Settings updated successfully."))
       .catch(err => console.error("Error updating settings:", err));
   };
 
-  // Reports
   const exportCSV = () => {
     api.get("/files-report/", { responseType: "blob", params: { format: "csv" } })
       .then(res => {
@@ -174,7 +222,6 @@ export default function AdminDashboard() {
       .catch(err => console.error("Error exporting PDF:", err));
   };
 
-  // Add User Modal component
   const AddUserModal = ({ onClose, onCreate }) => {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
@@ -280,29 +327,102 @@ export default function AdminDashboard() {
         <div className="dashboard-content">
           {/* Dashboard Overview */}
           {activeSection === "dashboard" && (
-            <div className="dashboard-overview">
-              <h2>Overview</h2>
-              <div className="cards">
-                <div className="card">
-                  <div className="card-icon"><FaFileAlt /></div>
-                  <div className="card-info">
-                    <h3>Files Pending</h3>
-                    <p>{stats.filesPending || 0}</p>
+            <div className="dashboard-overview space-y-6">
+              <h2 className="text-2xl font-bold">Overview</h2>
+
+              {/* Top Cards */}
+              <div className="cards grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
+                  <div className="card-icon text-orange-400 text-3xl"><FaFileAlt /></div>
+                  <div className="card-info ml-3">
+                    <h3 className="text-lg font-semibold">Files Pending</h3>
+                    <p className="text-xl">{stats.filesPending || 0}</p>
                   </div>
                 </div>
-                <div className="card">
-                  <div className="card-icon"><FaCheckCircle /></div>
-                  <div className="card-info">
-                    <h3>Files Verified</h3>
-                    <p>{stats.filesApproved || 0}</p>
+
+                <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
+                  <div className="card-icon text-green-500 text-3xl"><FaCheckCircle /></div>
+                  <div className="card-info ml-3">
+                    <h3 className="text-lg font-semibold">Files Verified</h3>
+                    <p className="text-xl">{stats.filesApproved || 0}</p>
                   </div>
                 </div>
-                <div className="card">
-                  <div className="card-icon"><FaUsers /></div>
-                  <div className="card-info">
-                    <h3>Users</h3>
-                    <p>{users.length || 0}</p>
+
+                <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
+                  <div className="card-icon text-blue-500 text-3xl"><FaUsers /></div>
+                  <div className="card-info ml-3">
+                    <h3 className="text-lg font-semibold">Users</h3>
+                    <p className="text-xl">{users.length || 0}</p>
                   </div>
+                </div>
+              </div>
+
+              <div className="charts-section">
+                {/* Files Overview Chart */}
+                <div className="chart-card">
+                  <div className="chart-header">
+                    <h3>Files Overview</h3>
+                    <div className="filters">
+                      <label className="filters-label">View By:</label>
+                      <select
+                        value={fileTimeFilter}
+                        onChange={(e) => {
+                          setFileTimeFilter(e.target.value);
+                          fetchFileStats(e.target.value);
+                        }}
+                        className="filters-select"
+                      >
+                        <option value="day">Daily</option>
+                        <option value="week">Weekly</option>
+                        <option value="month">Monthly</option>
+                        <option value="year">Yearly</option>
+                      </select>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={fileStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="pending" stroke="#f6ad55" />
+                      <Line type="monotone" dataKey="verified" stroke="#48bb78" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Users Overview Chart */}
+                <div className="chart-card">
+                  <div className="chart-header">
+                    <h3>Users Overview</h3>
+                    <div className="filters">
+                      <label className="filters-label">View By:</label>
+                      <select
+                        value={userTimeFilter}
+                        onChange={(e) => {
+                          setUserTimeFilter(e.target.value);
+                          fetchUserStats(e.target.value); 
+                        }}
+                        className="filters-select"
+                      >
+                        <option value="day">Daily</option>
+                        <option value="week">Weekly</option>
+                        <option value="month">Monthly</option>
+                        <option value="year">Yearly</option>
+                      </select>
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={userStats}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="active" fill="#4299e1" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -366,9 +486,9 @@ export default function AdminDashboard() {
                             className={`role-badge ${user.role.toLowerCase()}`}
                             style={{
                             backgroundColor:
-                              user.role === "admin" ? "#1554db" :
-                              user.role === "client" ? "#1d883d" :
-                              user.role === "viewer" ? "#8fa831" : "#ccc",
+                              user.role === "admin" ? "blue" :
+                              user.role === "client" ? "green" :
+                              user.role === "viewer" ? "orange" : "#ccc",
                             color: "#fff"
                           }}
                             value={user.role}
@@ -406,7 +526,6 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
-
           {/* Audit Logs Section */}
           {activeSection === "audit" && (
             <div className="audit-logs">

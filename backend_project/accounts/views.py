@@ -10,6 +10,8 @@ from rest_framework.response import Response
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import update_last_login
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -65,10 +67,8 @@ def custom_login(request):
     
     user = authenticate(username=username, password=password)
     if user:
-        # Update last_login
         update_last_login(None, user)
-        
-        # Create JWT tokens
+
         refresh = RefreshToken.for_user(user)
         return Response({
             "refresh": str(refresh),
@@ -79,3 +79,27 @@ def custom_login(request):
         })
     
     return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def user_stats(request):
+    period = request.query_params.get("period", "day")  
+
+    if period == "month":
+        trunc = TruncMonth("date_joined")
+    elif period == "week":
+        trunc = TruncWeek("date_joined")
+    else:
+        trunc = TruncDay("date_joined")
+
+    stats = (
+        User.objects
+        .annotate(period=trunc)
+        .values("period")
+        .annotate(
+            active=Count("id", filter=Q(is_active=True))
+        )
+        .order_by("period")
+    )
+
+    return Response(stats)

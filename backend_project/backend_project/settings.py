@@ -151,3 +151,6 @@ AUTH_USER_MODEL = 'accounts.User'
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Path to Poppler binaries (for pdf2image OCR)
+POPPLER_PATH = r"C:\poppler-25.07.0\Library\bin"

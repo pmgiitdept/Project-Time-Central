@@ -1,3 +1,4 @@
+// components/FileTable.jsx
 import { useEffect, useState } from "react";
 import api from "../api";
 import { toast } from "react-toastify";
@@ -11,8 +12,8 @@ export default function FileTable({ role, setSelectedFile }) {
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
 
-  const [search, setSearch] = useState(""); // text search
-  const [dateFilter, setDateFilter] = useState(""); // YYYY-MM-DD, YYYY-MM, or YYYY
+  const [search, setSearch] = useState(""); 
+  const [dateFilter, setDateFilter] = useState(""); 
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -44,11 +45,9 @@ export default function FileTable({ role, setSelectedFile }) {
     fetchFiles();
   }, []);
 
-  // Apply filters locally
   useEffect(() => {
     let tempFiles = [...files];
 
-    // Text search
     if (search) {
       tempFiles = tempFiles.filter((file) => {
         const name = file.file.split("/").pop().toLowerCase();
@@ -59,7 +58,6 @@ export default function FileTable({ role, setSelectedFile }) {
       });
     }
 
-    // Date filter using date picker
     if (dateFilter) {
       if (startDate) {
         tempFiles = tempFiles.filter((file) => new Date(file.uploaded_at) >= new Date(startDate));
