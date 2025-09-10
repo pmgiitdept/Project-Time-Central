@@ -1,6 +1,6 @@
 #accounts/views.py
 from rest_framework import generics, permissions, status
-from .models import User, FailedLoginAttempt
+from .models import User
 from .serializers import UserSerializer, RegisterSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -12,25 +12,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import update_last_login
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
-from files.utils import log_action, get_client_ip
-from files.models import SystemSettings
-from django.utils import timezone
-from datetime import timedelta
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = RegisterSerializer
-
-    def perform_create(self, serializer):
-        settings = SystemSettings.objects.first()
-        default_role = getattr(settings, "default_role", "client")
-        require_password_reset = getattr(settings, "require_password_reset", False)
-
-        serializer.save(
-            role=default_role,
-            require_password_reset=require_password_reset
-        )
 
 class UserView(generics.RetrieveAPIView):
     queryset = User.objects.all()
@@ -78,29 +64,12 @@ def list_users(request):
 def custom_login(request):
     username = request.data.get("username")
     password = request.data.get("password")
-    settings = SystemSettings.objects.first()
+    
+    user = authenticate(username=username, password=password)
+    if user:
+        update_last_login(None, user)
 
-    user = User.objects.filter(username=username).first()
-    if not user:
-        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    # --- Check max login attempts ---
-    if settings and settings.max_login_attempts:
-        window = timezone.now() - timedelta(hours=1)  # 1-hour window
-        recent_failures = user.failed_logins.filter(timestamp__gte=window).count()
-        if recent_failures >= settings.max_login_attempts:
-            return Response({"detail": "Account temporarily locked due to too many failed login attempts"}, status=403)
-
-    authenticated_user = authenticate(username=username, password=password)
-    if authenticated_user:
-        # --- Clear previous failed attempts on successful login ---
-        user.failed_logins.all().delete()
-        update_last_login(None, authenticated_user)
-
-        refresh = RefreshToken.for_user(authenticated_user)
-
-        log_action(authenticated_user, "login", ip=get_client_ip(request))
-
+        refresh = RefreshToken.for_user(user)
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
@@ -108,19 +77,8 @@ def custom_login(request):
             "role": getattr(user, "role", "user"),
             "last_login": user.last_login,
         })
-
-    # --- Failed login tracking ---
-    FailedLoginAttempt.objects.create(user=user)
+    
     return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
-
-def disable_inactive_users():
-    settings = SystemSettings.objects.first()
-    if not settings or not settings.auto_disable_inactive:
-        return
-
-    cutoff = timezone.now() - timedelta(days=settings.auto_disable_inactive)
-    users_to_disable = User.objects.filter(is_active=True, last_login__lt=cutoff)
-    users_to_disable.update(is_active=False)
 
 @api_view(["GET"])
 @permission_classes([IsAdminUser])
