@@ -160,12 +160,3 @@ POPPLER_PATH = r"C:\poppler-25.07.0\Library\bin"
 CELERY_BROKER_URL = 'redis://localhost:6379/0'  # adjust if using another broker
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-
-from celery.schedules import crontab
-
-CELERY_BEAT_SCHEDULE = {
-    "disable-inactive-users-every-midnight": {
-        "task": "accounts.tasks.disable_inactive_users_task",
-        "schedule": crontab(minute=0, hour=0),  # run every day at midnight
-    },
-}

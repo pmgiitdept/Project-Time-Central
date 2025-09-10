@@ -14,31 +14,24 @@ export default function ClientDashboard() {
       {/* Navigation Bar */}
       <nav className="dashboard-navbar">
         <div className="navbar-left">
-          <img
-            src="/src/pmgi.png"
-            alt="Left Logo"
-            className="navbar-logo"
-          />
+          <img src="/src/pmgi.png" alt="Left Logo" className="navbar-logo" />
           <h1 className="dashboard-title">Client Dashboard</h1>
         </div>
         <div className="navbar-right">
-          <img
-            src="/src/sgslogos.png"
-            alt="Right Logo"
-            className="navbar-logo"
-          />
+          <img src="/src/sgslogos.png" alt="Right Logo" className="navbar-logo" />
           <LogoutButton />
         </div>
       </nav>
 
-      {/* Upload Form */}
-      <div className="upload-section">
-        <FileUpload refreshFiles={refreshFiles} />
-      </div>
+      {/* Upload + Table side by side */}
+      <div className="main-section">
+        <div className="upload-section">
+          <FileUpload refreshFiles={refreshFiles} />
+        </div>
 
-      {/* File Table */}
-      <div className="table-section">
-        <FileTable role="client" key={refresh} />
+        <div className="table-section">
+          <FileTable role="client" key={refresh} />
+        </div>
       </div>
     </div>
   );

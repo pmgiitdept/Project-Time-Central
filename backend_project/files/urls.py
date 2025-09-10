@@ -21,4 +21,3 @@ urlpatterns = [
     path("files-report/", export_files_report, name="files-report"),
     path("file-stats/", file_stats, name="file-stats"),
 ]
-

@@ -99,7 +99,6 @@ def custom_login(request):
 
         refresh = RefreshToken.for_user(authenticated_user)
 
-        # log login
         log_action(authenticated_user, "login", ip=get_client_ip(request))
 
         return Response({

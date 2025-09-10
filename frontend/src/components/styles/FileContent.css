@@ -274,3 +274,50 @@
   align-items: center;
   font-size: 0.9rem;
 }
+
+/* For the select itself */
+.status-select {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  border: none;
+  outline: none;
+}
+
+/* Variants */
+.status-select.pending {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.status-select.verified {
+  background-color: #28a745;
+}
+
+.status-select.rejected {
+  background-color: #dc3545;
+}
+
+/* For non-editable spans */
+.status-span {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.status-span.pending {
+  background-color: #ffc107;
+  color: #000;
+}
+
+.status-span.verified {
+  background-color: #28a745;
+}
+
+.status-span.rejected {
+  background-color: #dc3545;
+}
