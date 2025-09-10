@@ -1,10 +1,8 @@
 // components/FileContent.jsx
 import { useEffect, useState, useRef } from "react";
-import axios from "axios";
 import api from "../api";
 import { toast } from "react-toastify";
 import "./styles/FileContent.css";
-import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -17,16 +15,18 @@ export default function FileContent({ fileId, role }) {
 
   const [search, setSearch] = useState("");
   const [columnFilters, setColumnFilters] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const rowsPerPage = 20;
   const tableContainerRef = useRef(null);
-  const [scrollProgress, setScrollProgress] = useState(0);
 
   const [expanded, setExpanded] = useState(false);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
-
   const saveTimeout = useRef(null);
+  const currentPageData = pages[currentPdfPage] || { text: "", tables: [] };
+  const [fileInfo, setFileInfo] = useState(null);
+  const fileOwner = fileInfo?.owner || "-";
+  const fileUrl = fileInfo?.file || "";
+  const fileName = fileUrl ? fileUrl.split("/").pop() : "-";
+  const uploadedAt = fileInfo?.uploaded_at || "";
+  const status = fileInfo?.status || "pending";
 
   const getColumnTotals = () => {
     const totals = [];
@@ -57,10 +57,96 @@ export default function FileContent({ fileId, role }) {
     return totals;
   };
 
+  const buildTotalRow = () => {
+    const totals = getColumnTotals(); 
+    const row = [];
+
+    row.push({ content: "", styles: { fillColor: [240, 240, 240], fontStyle: "bold" } });
+
+    row.push({ content: "Total", styles: { fillColor: [240, 240, 240], fontStyle: "bold", textColor: [0,0,0] } });
+
+    totals.slice(2).forEach(total => {
+      row.push({ content: total.toString(), styles: { fillColor: [240, 240, 240], fontStyle: "bold" } });
+    });
+
+    return row;
+  };
+
+  const getPageHeaderText = (fullText) => {
+    const lines = fullText.split("\n").map(line => line.trim()).filter(Boolean);
+
+    const cutoffIndex = lines.findIndex(line =>
+      line.startsWith("Emp.") ||
+      line.startsWith("Name")
+    );
+
+    return cutoffIndex !== -1 ? lines.slice(0, cutoffIndex) : lines;
+  };
+
+  const drawPageHeader = (doc, headerText) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+
+    const lines = getPageHeaderText(headerText);
+
+    const leftLines = lines.filter(line =>
+      line !== "LEGEND :" && 
+      !line.startsWith("WRK") &&
+      !line.startsWith("ABS") &&
+      !line.startsWith("LV") &&
+      !line.startsWith("UT") &&
+      !line.startsWith("REG") &&
+      !line.startsWith("OT") &&
+      !line.startsWith("ND") &&
+      !line.startsWith("OTND") &&
+      !line.startsWith("LH")
+    );
+
+    const rightLines = lines.filter(line =>
+      line === "LEGEND :" ||
+      line.startsWith("WRK") ||
+      line.startsWith("ABS") ||
+      line.startsWith("LV") ||
+      line.startsWith("UT") ||
+      line.startsWith("REG") ||
+      line.startsWith("OT") ||
+      line.startsWith("ND") ||
+      line.startsWith("OTND") ||
+      line.startsWith("LH")
+    );
+
+    let y = margin;
+
+    doc.setFontSize(9);
+    leftLines.forEach(line => {
+      doc.setFont("helvetica", "normal");
+      doc.text(line, margin, y);
+      y += 12;
+    });
+
+    y = margin;
+    const rightX = pageWidth / 2 + 40;
+    rightLines.forEach(line => {
+      if (line === "LEGEND :") {
+        doc.setFont("helvetica", "bold");
+        doc.text(line, rightX, y);
+        y += 14; 
+      } else {
+        const [acronym, ...rest] = line.split(" ");
+        doc.setFont("helvetica", "bold");
+        doc.text(acronym, rightX, y);
+        doc.setFont("helvetica", "normal");
+        doc.text(rest.join(" "), rightX + 30, y);
+        y += 12;
+      }
+    });
+
+    return Math.max(leftLines.length, rightLines.length) * 12 + margin + 10;
+  };
+
   const handleExport = (type) => {
     const tableData = mergedRows.map(({ row }) => row);
-    const totals = getColumnTotals();
-    tableData.push(totals);
+    tableData.push(buildTotalRow());
 
     if (type === "pdf") {
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -78,25 +164,21 @@ export default function FileContent({ fileId, role }) {
         styles: { halign: "center", fillColor: [230, 230, 230], fontStyle: "bold" },
       }));
 
-      const colCount = flatSubHeaders.length;
-      const columnStyles = {};
-      for (let c = 0; c < colCount; c++) {
-        columnStyles[c] = { cellWidth: "auto" }; 
-      }
+      const headerY = drawPageHeader(doc, currentPageData.text);
 
       autoTable(doc, {
         head: [mainHeaderRow, subHeaderRow],
         body: tableData,
-        startY: 40,
         theme: "grid",
-        margin: { left: 20, right: 20 },
+        margin: { top: headerY, left: 20, right: 20 },
+        tableWidth: "auto",
         styles: {
-          textColor: [0, 0, 0], 
+          textColor: [0, 0, 0],
           fillColor: [255, 255, 240],
-          fontSize: 8,          
-          cellPadding: 4,         
-          overflow: "linebreak", 
-          minCellHeight: 15,      
+          fontSize: 6.5,
+          cellPadding: 3,
+          overflow: "linebreak",
+          minCellHeight: 14,
           halign: "center",
           valign: "middle",
           lineColor: [0, 0, 0],
@@ -106,13 +188,16 @@ export default function FileContent({ fileId, role }) {
           fillColor: [180, 180, 180],
           textColor: [0, 0, 0],
           fontStyle: "bold",
+          fontSize: 7,
           halign: "center",
           valign: "middle",
         },
         alternateRowStyles: {
           fillColor: [245, 245, 245],
         },
-        columnStyles,
+        didDrawPage: () => {
+          drawPageHeader(doc, currentPageData.text);
+        }
       });
 
       doc.save("DTRSummary.pdf");
@@ -120,35 +205,69 @@ export default function FileContent({ fileId, role }) {
   };
 
   const handlePrint = () => {
-    const doc = new jsPDF({
-      orientation: "landscape",
-      unit: "pt",
-      format: "a4",
-    });
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
 
-    const headerRow = mainHeaders;
-    const subHeaderRow = subHeaders.flat().map(h => h || "");
-    const bodyRows = mergedRows.map(({ row }) => row);
-    bodyRows.push(getColumnTotals()); 
+    const tableData = mergedRows.map(({ row }) => row);
+    tableData.push(buildTotalRow());
+
+    const flatSubHeaders = subHeaders.flat();
+
+    const mainHeaderRow = mainHeaders.map((header, idx) => ({
+      content: header,
+      colSpan: subHeaders[idx]?.length || 1,
+      styles: { halign: "center", fillColor: [200, 200, 200], fontStyle: "bold" },
+    }));
+
+    const subHeaderRow = flatSubHeaders.map((sh) => ({
+      content: sh || "",
+      styles: { halign: "center", fillColor: [230, 230, 230], fontStyle: "bold" },
+    }));
+
+    const headerY = drawPageHeader(doc, currentPageData.text);
 
     autoTable(doc, {
-      head: [headerRow, subHeaderRow],
-      body: bodyRows,
-      startY: 40,
-      styles: { fontSize: 8 },
+      head: [mainHeaderRow, subHeaderRow],
+      body: tableData,
       theme: "grid",
-      headStyles: { fillColor: [200, 200, 200] },
-      margin: { left: 20, right: 20 },
+      margin: { top: headerY, left: 20, right: 20 },
+      tableWidth: "auto",
+      styles: {
+        textColor: [0, 0, 0],
+        fillColor: [255, 255, 240],
+        fontSize: 6.5,
+        cellPadding: 3,
+        overflow: "linebreak",
+        minCellHeight: 14,
+        halign: "center",
+        valign: "middle",
+        lineColor: [0, 0, 0],
+        lineWidth: 0.5,
+      },
+      headStyles: {
+        fillColor: [180, 180, 180],
+        textColor: [0, 0, 0],
+        fontStyle: "bold",
+        fontSize: 7,
+        halign: "center",
+        valign: "middle",
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245],
+      },
+      didDrawPage: (data) => {
+        drawPageHeader(doc, currentPageData.text);
+      }
     });
 
-    doc.autoPrint(); 
-    window.open(doc.output("bloburl"), "_blank"); 
+    doc.autoPrint();
+    window.open(doc.output("bloburl"), "_blank");
   };
 
   const fetchContent = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("access_token");
+
       const res = await api.get(`files/${fileId}/content/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -163,9 +282,15 @@ export default function FileContent({ fileId, role }) {
           setColumnFilters(firstTable[0]?.map(() => "") || []);
         }
       }
+
+      const metaRes = await api.get(`files/${fileId}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setFileInfo(metaRes.data);
+
     } catch (err) {
       console.error(err);
-      toast.error("Failed to fetch file content");
+      toast.error("Failed to fetch file content or metadata");
     } finally {
       setLoading(false);
     }
@@ -181,11 +306,16 @@ export default function FileContent({ fileId, role }) {
     setPages(updated);
   };
 
-  const formatNumeric = (value) => {
-    if (value === "" || value === null) return "";
+  const formatNumeric = (value, colIdx = null) => {
+    if (value === "" || value === null || value === undefined) return "";
     const num = parseFloat(value);
-    if (isNaN(num)) return value;
-    return num.toFixed(2);
+    if (isNaN(num)) return value; 
+
+    if (colIdx === 0 || colIdx === 1) {
+      return String(value); 
+    }
+
+    return num.toFixed(2); 
   };
 
   const preparePagesForBackend = (pages) => {
@@ -218,10 +348,9 @@ export default function FileContent({ fileId, role }) {
                 normalized = normalized.slice(0, expectedCols);
               }
 
-              return normalized.map((cell) => {
+              return normalized.map((cell, colIdx) => {
                 if (cell === "" || cell === null || cell === undefined) return "";
-                const num = parseFloat(cell);
-                return isNaN(num) ? String(cell) : num;
+                return formatNumeric(cell, colIdx);
               });
             }),
           };
@@ -250,28 +379,22 @@ export default function FileContent({ fileId, role }) {
     }
   };
 
-  const handleCellChange = (pageIdx, rowIdx, colIdx, value) => {
+  const handleCellChange = (pageIdx, rowIdx, colIdx, value, format = false) => {
     setPages((prevPages) => {
       const updated = [...prevPages];
       const table = { ...updated[pageIdx].tables[0] };
       const row = [...table.rows[rowIdx]];
 
-      let newValue = value;
-      if (value === "" || value === null) {
-        newValue = 0.0;
-      } else {
-        const parsed = parseFloat(value);
-        newValue = isNaN(parsed) ? value : parseFloat(parsed.toFixed(2));
-      }
-
-      row[colIdx] = newValue;
+      row[colIdx] = format ? formatNumeric(value, colIdx) : value;
       table.rows[rowIdx] = row;
       updated[pageIdx].tables[0] = table;
       return updated;
     });
 
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(() => handleAutoSave(), 1500);
+    if (format) {  
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      saveTimeout.current = setTimeout(() => handleAutoSave(), 1500);
+    }
   };
 
   const handleUndoRow = (pageIdx, rowIdx) => {
@@ -323,8 +446,6 @@ export default function FileContent({ fileId, role }) {
   if (loading) return <p>Loading file content...</p>;
   if (!pages.length) return <p>No data available</p>;
 
-  const currentPageData = pages[currentPdfPage];
-
   const mainHeaders = [
     "Emp.No",
     "Name",
@@ -363,135 +484,150 @@ export default function FileContent({ fileId, role }) {
 
   return (
     <div className="file-content-container">
-       
-      {currentPageData?.text && (
-        <textarea
-          value={currentPageData.text}
-          onChange={(e) => handleTextEdit(e.target.value)}
-          readOnly={!isEditable}
-          style={{
-            width: "100%",
-            height: "200px",
-            whiteSpace: "pre-wrap",
-            fontFamily: "monospace",
-            marginBottom: "1rem",
-          }}
-        />
-      )} 
+      <div className="file-content-flex">
+        {/* Left side: text / table controls */}
+        <div className="file-content-left">
+          <div className="file-metadata">
+            <div className="metadata-grid">
+              <div>
+                <strong>Owner:</strong> <span>{fileOwner}</span>
+              </div>
+              <div>
+                <strong>File Name:</strong> <span>{fileName}</span>
+              </div>
+              <div>
+                <strong>Uploaded At:</strong> <span>{new Date(uploadedAt).toLocaleString()}</span>
+              </div>
+              <div>
+                <strong>Status:</strong>
+                {isEditable ? (
+                  <select value={status} onChange={(e) => handleStatusChange(fileId, e.target.value)}>
+                    <option value="pending">Pending</option>
+                    <option value="verified">Verified</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                ) : (
+                  <span>{status}</span>
+                )}
+              </div>
+            </div>
 
-      <div className="mb-6">
-        <div className="table-card">
-          <div className="table-card-header">
-            <h3>Employee Data</h3>
-            <button onClick={() => setExpanded(!expanded)}>
-              {expanded ? "Collapse Table ▲" : "Expand Table ▼"}
-            </button>
-            <button onClick={() => setIsModalOpen(true)}>Open Full Table 📊</button>
+            <div>
+              <label><strong>Original Text Format:</strong></label>
+              {currentPageData?.text && (
+                <textarea
+                  value={currentPageData.text}
+                  onChange={(e) => handleTextEdit(e.target.value)}
+                  readOnly={!isEditable}
+                  style={{
+                    width: "100%",
+                    height: "200px",
+                    whiteSpace: "pre-wrap",
+                    fontFamily: "monospace",
+                    marginTop: "0.5rem",
+                  }}
+                />
+              )}
+            </div>
           </div>
 
-          {expanded && (
-            <div
-              ref={tableContainerRef}
-              style={{
-                maxHeight: "600px",
-                overflowX: "auto",
-                overflowY: "auto",
-                whiteSpace: "nowrap",
-                marginTop: "1rem",
-              }}
-              onScroll={handleScroll}
-            >
-              <table className="file-content-table">
-                <thead>
-                  <tr>
-                    {mainHeaders.map((h, idx) => (
-                      <th
-                        key={idx}
-                        colSpan={subHeaders[idx]?.length || 1}
-                        style={{ textAlign: "center" }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                    <th rowSpan={2}>Actions</th>
-                  </tr>
-                  <tr>
-                    {subHeaders.map((subs, idx) => {
-                      const subsArray = Array.isArray(subs) ? subs : [subs];
-                      return subsArray.length > 0 && subsArray[0] !== "" ? (
-                        subsArray.map((sh, sIdx) => <th key={`${idx}-${sIdx}`}>{sh}</th>)
-                      ) : (
-                        <th key={`${idx}-0`}></th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {mergedRows.map(({ row, pageIdx, rowIdx }) => {
-                    const expectedCols = subHeaders.reduce(
-                      (acc, subs) => acc + (subs.length > 0 ? subs.length : 1),
-                      0
-                    );
-                    const trimmedRow = row.slice(0, expectedCols);
-
-                    return (
-                      <tr key={`${pageIdx}-${rowIdx}`}>
-                        {trimmedRow.map((cell, cIdx) => {
-                          const cellValue = String(cell || "");
-                          const originalValue =
-                            originalPages[pageIdx]?.tables?.[0]?.rows?.[rowIdx]?.[cIdx] ??
-                            cellValue;
-
-                          const changed = cellValue !== String(originalValue);
-
-                          return (
-                            <td
-                              key={cIdx}
-                              style={{
-                                backgroundColor: changed ? "#ffe0b2" : "transparent",
-                              }}
-                            >
-                              <input
-                                type="text"
-                                value={cellValue}
-                                onChange={(e) =>
-                                  handleCellChange(
-                                    pageIdx,
-                                    rowIdx,
-                                    cIdx,
-                                    e.target.value
-                                  )
-                                }
-                                readOnly={!isEditable}
-                                style={{
-                                  width: `${cellValue.length + 1}ch`,
-                                  minWidth: "100%",
-                                  border: isEditable ? "none" : "transparent",
-                                  backgroundColor: isEditable ? "transparent" : "#f5f5f5",
-                                  padding: "2px",
-                                  whiteSpace: "nowrap",
-                                }}
-                              />
-                            </td>
-                          );
-                        })}
-                        <td>
-                          <button
-                            className="undo-btn"
-                            onClick={() => handleUndoRow(pageIdx, rowIdx)}
-                          >
-                            Undo Row
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <div className="mb-6">
+            <div className="table-card">
+              <div className="table-card-header">
+                <h3>Employees Data Summary</h3>
+                {/* <button onClick={() => setExpanded(!expanded)}>
+                  {expanded ? "Collapse Table ▲" : "Expand Table ▼"}
+                </button>*/}
+                <button onClick={() => setIsModalOpen(true)}>Open Full Table 📊</button>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {/* Expanded Table Outside Left Panel */}
+      {expanded && (
+        <div
+          className="expanded-table-wrapper"
+          ref={tableContainerRef}
+          onScroll={handleScroll}
+        >
+          <table className="file-content-table">
+            <thead>
+              <tr>
+                {mainHeaders.map((h, idx) => (
+                  <th key={idx} colSpan={subHeaders[idx]?.length || 1} style={{ textAlign: "center" }}>
+                    {h}
+                  </th>
+                ))}
+                <th rowSpan={2}>Actions</th>
+              </tr>
+              <tr>
+                {subHeaders.map((subs, idx) => {
+                  const subsArray = Array.isArray(subs) ? subs : [subs];
+                  return subsArray.length > 0 && subsArray[0] !== "" ? (
+                    subsArray.map((sh, sIdx) => <th key={`${idx}-${sIdx}`}>{sh}</th>)
+                  ) : (
+                    <th key={`${idx}-0`}></th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {mergedRows.map(({ row, pageIdx, rowIdx }) => {
+                const expectedCols = subHeaders.reduce(
+                  (acc, subs) => acc + (subs.length > 0 ? subs.length : 1),
+                  0
+                );
+                const trimmedRow = row.slice(0, expectedCols);
+
+                return (
+                  <tr key={`${pageIdx}-${rowIdx}`}>
+                    {trimmedRow.map((cell, cIdx) => {
+                      const cellValue = String(cell || "");
+                      const originalValue =
+                        originalPages[pageIdx]?.tables?.[0]?.rows?.[rowIdx]?.[cIdx] ?? cellValue;
+                      const changed = cellValue !== String(originalValue);
+
+                      return (
+                        <td
+                          key={cIdx}
+                          style={{ backgroundColor: changed ? "#ffe0b2" : "transparent" }}
+                        >
+                          <input
+                            type="text"
+                            value={cellValue}
+                            onChange={(e) =>
+                              handleCellChange(pageIdx, rowIdx, cIdx, e.target.value)
+                            }
+                            onBlur={(e) =>
+                              handleCellChange(pageIdx, rowIdx, cIdx, e.target.value, true)
+                            }
+                            readOnly={!isEditable}
+                            style={{
+                              width: `${cellValue.length + 1}ch`,
+                              minWidth: "100%",
+                              border: isEditable ? "none" : "transparent",
+                              backgroundColor: isEditable ? "transparent" : "#f5f5f5",
+                              padding: "2px",
+                              whiteSpace: "nowrap",
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td>
+                      <button className="undo-btn" onClick={() => handleUndoRow(pageIdx, rowIdx)}>
+                        Undo Row
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Full Table Modal */}
       {isModalOpen && (
@@ -608,7 +744,7 @@ export default function FileContent({ fileId, role }) {
                   {/* Total row */}
                   <tr style={{ fontWeight: "bold", background: "#f0f0f0", border: "none" }}>
                     <td style={{ border: "none", background: "#f0f0f0" }}></td> {/* First column blank */}
-                    <td style={{ border: "none", background: "#f0f0f0" }}>Total</td> {/* "Total" label under second column */}
+                    <td style={{ border: "none", background: "#f0f0f0", color: "black" }}>Total</td> {/* "Total" label under second column */}
                     {getColumnTotals().slice(2).map((total, idx) => (
                       <td key={idx} style={{ border: "none" }}>{total}</td>
                     ))}

@@ -3,7 +3,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import File, AuditLog, SystemSettings
 from .serializers import FileSerializer, FileStatusSerializer, AuditLogSerializer, SystemSettingsSerializer
-from accounts.permissions import ReadOnlyForViewer, IsOwnerOrAdmin, CanEditStatus
+from accounts.permissions import ReadOnlyForViewer, IsOwnerOrAdmin, CanEditStatus, IsAdmin
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.http import FileResponse, Http404, HttpResponse
@@ -15,11 +15,18 @@ from accounts.models import User
 from reportlab.pdfgen import canvas
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
-import pytesseract
 from PIL import Image
-import cv2
 import numpy as np
-import easyocr
+from .utils import log_action, get_client_ip
+from django.core.exceptions import ValidationError
+
+def log_action(user, action, status="success", ip_address=None):
+    AuditLog.objects.create(
+        user=user if user.is_authenticated else None,
+        action=action,
+        status=status,
+        ip_address=ip_address
+    )
 
 class FileViewSet(viewsets.ModelViewSet):
     queryset = File.objects.all()
@@ -39,31 +46,77 @@ class FileViewSet(viewsets.ModelViewSet):
             return File.objects.filter(owner=user)
         return File.objects.all()
 
+    def get_permissions(self):
+        if self.action == "destroy":  # DELETE
+            permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+        elif self.action == "update_status":
+            permission_classes = [IsAuthenticated, CanEditStatus]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [p() for p in permission_classes]
+    
     def perform_create(self, serializer):
         user = self.request.user
+        settings = SystemSettings.objects.first()  # we only have one row
+        
         file_obj = serializer.validated_data['file']
-
+        
+        # 1. Check file size
+        max_size = settings.max_file_size * 1024 * 1024  # convert MB to bytes
+        if file_obj.size > max_size:
+            raise ValidationError(f"File exceeds max size of {settings.max_file_size} MB")
+        
+        # 2. Check allowed types
+        ext = file_obj.name.split('.')[-1].lower()
+        if ext not in settings.allowed_types:
+            raise ValidationError(f"File type {ext} not allowed. Allowed: {settings.allowed_types}")
+        
+        # 3. Existing overwrite logic
         if user.role == 'client':
             existing_file = File.objects.filter(owner=user, file=file_obj.name).first()
             if existing_file:
                 existing_file.file.delete(save=False)
                 serializer.instance = existing_file
                 serializer.save()
+                log_action(user, f"updated file {file_obj.name}", ip_address=get_client_ip(self.request))
                 return
 
-        serializer.save(owner=user)
+        new_file = serializer.save(owner=user)
+        log_action(user, f"uploaded file {new_file.file.name}", ip_address=get_client_ip(self.request))
 
     @action(
             detail=True, 
             methods=["get"], 
             permission_classes=[IsAuthenticated, ReadOnlyForViewer, IsOwnerOrAdmin]
     )
+
+    @action(detail=True, methods=["get"], url_path="download")
     def download(self, request, pk=None):
         file = self.get_object()
+        settings = SystemSettings.objects.first()
+        
+        if settings.require_verification and file.status != "verified":
+            return Response({"detail": "File must be verified before download"}, status=403)
+        
+        if settings.log_downloads:
+            log_action(request.user, f"downloaded file {file.file.name}", ip_address=get_client_ip(request))
+        
         try:
             return FileResponse(file.file.open(), as_attachment=True, filename=file.file.name)
         except FileNotFoundError:
             raise Http404
+
+    def perform_destroy(self, instance):
+        settings = SystemSettings.objects.first()
+        
+        if settings.auto_archive:
+            instance.status = "archived"
+            instance.save(update_fields=["status"])
+            log_action(self.request.user, f"archived file {instance.file.name}", ip_address=get_client_ip(self.request))
+        else:
+            file_name = instance.file.name
+            super().perform_destroy(instance)
+            log_action(self.request.user, f"deleted file {file_name}", ip_address=get_client_ip(self.request))
 
     @action(detail=True, methods=["patch"], url_path="status", parser_classes=[JSONParser])
     def update_status(self, request, pk=None):
@@ -514,12 +567,12 @@ def export_files_report(request):
 class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AuditLog.objects.all().order_by("-timestamp")
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAdmin]  
 
 class SystemSettingsViewSet(viewsets.ModelViewSet):
     queryset = SystemSettings.objects.all()
     serializer_class = SystemSettingsSerializer
-    permission_classes = [IsAuthenticated] 
+    permission_classes = [IsAdmin] 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -545,3 +598,23 @@ def file_stats(request):
     )
 
     return Response(stats)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def file_audit_logs(request):
+    logs = AuditLog.objects.filter(
+        action__in=["upload", "delete", "update"]
+    ).order_by("-timestamp")
+
+    data = [
+        {
+            "user": log.user.username if log.user else "Unknown",
+            "role": log.user.role if log.user else "Unknown",
+            "action": log.action,
+            "status": log.status,
+            "ip_address": log.ip_address,
+            "timestamp": log.timestamp,
+        }
+        for log in logs
+    ]
+    return Response(data)

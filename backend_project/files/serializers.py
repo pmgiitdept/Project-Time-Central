@@ -8,21 +8,21 @@ class FileSerializer(serializers.ModelSerializer):
     class Meta:
         model = File
         fields = ["id", "owner", "file", "uploaded_at", "updated_at", "status"]
-        # read_only_fields = ["status"]  # remove this line
 
 class FileStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = File
-        fields = ["status"] 
+        fields = ["status"]
 
 class AuditLogSerializer(serializers.ModelSerializer):
     user = serializers.ReadOnlyField(source="user.username", read_only=True)
-    
+    role = serializers.ReadOnlyField(source="user.role", read_only=True) 
+
     class Meta:
         model = AuditLog
-        fields = ["id", "user", "action", "timestamp"]
+        fields = ["id", "user", "role", "action", "status", "ip_address", "timestamp"]
 
 class SystemSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = SystemSettings
-        fields = ["id", "site_name", "max_file_size", "allowed_types"]
+        fields = "__all__"

@@ -1,6 +1,7 @@
 #accounts/models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
@@ -22,3 +23,11 @@ class User(AbstractUser):
 
     def is_admin(self):
         return self.role == self.Roles.ADMIN
+    
+class FailedLoginAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="failed_logins")
+    timestamp = models.DateTimeField(default=timezone.now)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.user.username} at {self.timestamp}"

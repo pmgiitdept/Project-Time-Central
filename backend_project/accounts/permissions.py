@@ -5,11 +5,9 @@ class IsViewer(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == "viewer"
 
-
 class IsClient(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_authenticated and request.user.role == "client"
-
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
