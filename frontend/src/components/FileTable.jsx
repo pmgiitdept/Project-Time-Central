@@ -234,7 +234,7 @@ export default function FileTable({ role, setSelectedFile }) {
                   overflowX: "auto"
                 }}
               >
-              {selectedFiles.length > 0 && (
+              {selectedFiles.length > 0 && role === "admin" && (
                 <div style={{ marginBottom: "1rem" }}>
                   <button
                     className="action-btn delete"
@@ -265,6 +265,7 @@ export default function FileTable({ role, setSelectedFile }) {
                   <table className="file-table">
                     <thead>
                       <tr>
+                        {role === "admin" && (
                         <th>
                           <input
                             type="checkbox"
@@ -278,12 +279,13 @@ export default function FileTable({ role, setSelectedFile }) {
                             }}
                           />
                         </th>
+                        )}
                         <th>ID</th>
                         <th>Owner</th>
                         <th>File</th>
                         <th>Uploaded At</th>
                         <th>Status</th>
-                        {(role === "admin" || role === "client") && <th>Actions</th>}
+                        {role === "admin" && <th>Actions</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -302,20 +304,22 @@ export default function FileTable({ role, setSelectedFile }) {
                           }}
                           style={{ cursor: "pointer" }}
                         >
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={selectedFiles.includes(file.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedFiles([...selectedFiles, file.id]);
-                                } else {
-                                  setSelectedFiles(selectedFiles.filter((id) => id !== file.id));
-                                }
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </td>
+                          {role === "admin" && (
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={selectedFiles.includes(file.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedFiles([...selectedFiles, file.id]);
+                                  } else {
+                                    setSelectedFiles(selectedFiles.filter((id) => id !== file.id));
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </td>
+                          )}
                           <td>{file.id}</td>
                           <td>{file.owner}</td>
                           <td
@@ -326,7 +330,7 @@ export default function FileTable({ role, setSelectedFile }) {
                           </td>
                           <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                           <td>
-                            {(role === "admin" || role === "viewer") ? (
+                            {role === "admin" ? (
                               <select
                                 value={file.status}
                                 onChange={(e) => handleStatusChange(file.id, e.target.value)}
@@ -337,11 +341,12 @@ export default function FileTable({ role, setSelectedFile }) {
                                 <option value="rejected">Rejected</option>
                               </select>
                             ) : (
-                              <span className={`status-badge status-${file.status}`}>{file.status}</span>
+                              <span className={`status-badge status-${file.status}`}>
+                                {file.status}
+                              </span>
                             )}
                           </td>
-                          {/* Actions */}
-                          {(role === "admin" || role === "client") && (
+                          {role === "admin" && (
                             <td>
                               <button
                                 className="action-btn download"
@@ -389,7 +394,17 @@ export default function FileTable({ role, setSelectedFile }) {
       <div className="file-content-right">
         <h2 className="table-section-title">DTR Contents Dashboard</h2>
         {selectedFileId ? (
-          <FileContent fileId={selectedFileId} role={role} />
+          <FileContent
+            fileId={selectedFileId}
+            role={role}
+            onStatusChange={(newStatus) => {
+              setFiles(prevFiles =>
+                prevFiles.map(f =>
+                  f.id === selectedFileId ? { ...f, status: newStatus } : f
+                )
+              );
+            }}
+          />
         ) : (
           <p style={{ textAlign: "center", marginTop: "2rem" }}>
             Select a file to view its content here.
