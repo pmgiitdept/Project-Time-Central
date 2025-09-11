@@ -47,7 +47,7 @@ class FileViewSet(viewsets.ModelViewSet):
         return File.objects.all()
 
     def get_permissions(self):
-        if self.action == "destroy":  # DELETE
+        if self.action == "destroy":
             permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
         elif self.action == "update_status":
             permission_classes = [IsAuthenticated, CanEditStatus]
@@ -57,12 +57,12 @@ class FileViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         user = self.request.user
-        settings = SystemSettings.objects.first()  # we only have one row
+        settings = SystemSettings.objects.first() 
         
         file_obj = serializer.validated_data['file']
         
         # 1. Check file size
-        max_size = settings.max_file_size * 1024 * 1024  # convert MB to bytes
+        max_size = settings.max_file_size * 1024 * 1024 
         if file_obj.size > max_size:
             raise ValidationError(f"File exceeds max size of {settings.max_file_size} MB")
         
@@ -131,10 +131,9 @@ class FileViewSet(viewsets.ModelViewSet):
         file_obj = self.get_object()
         print(f"User: {request.user}, Role: {request.user.role}, File: {file_obj.file.name}")
 
-        if request.user.role not in ["admin", "viewer"]:
+        if request.user.role not in ["admin", "viewer" , "client"]:
             return Response({"detail": "Forbidden"}, status=403)
 
-        # ✅ Always prioritize stored edits
         if file_obj.parsed_content:
             return Response({"pages": file_obj.parsed_content})
 
@@ -142,7 +141,7 @@ class FileViewSet(viewsets.ModelViewSet):
         try:
             # --- CSV ---
             if file_name.endswith(".csv"):
-                file_obj.file.seek(0)  # reset pointer
+                file_obj.file.seek(0) 
                 file_data = file_obj.file.read()
                 decoded_data = file_data.decode("utf-8").splitlines()
                 reader = csv.reader(decoded_data)
