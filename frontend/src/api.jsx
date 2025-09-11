@@ -1,9 +1,16 @@
 // src/api.js
 import axios from "axios";
 
-// ✅ Use environment variable for flexibility (local vs production)
+// ✅ Detect environment
+const isLocalhost = window.location.hostname === "localhost";
+
+// ✅ Use local backend when developing, otherwise use your deployed backend
+const baseURL = isLocalhost
+  ? "http://127.0.0.1:8000/api/"
+  : "https://<your-backend-service-name>.onrender.com/api/";
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/",
+  baseURL,
 });
 
 // 🔑 Attach access token to every request
@@ -27,14 +34,12 @@ api.interceptors.response.use(
       try {
         const refresh = localStorage.getItem("refresh_token");
         if (refresh) {
-          // ✅ Correct refresh endpoint
-          const res = await axios.post(
-            `${api.defaults.baseURL}auth/token/refresh/`,
-            { refresh }
-          );
+          const res = await axios.post(`${baseURL}auth/token/refresh/`, {
+            refresh,
+          });
           localStorage.setItem("access_token", res.data.access);
           error.config.headers.Authorization = `Bearer ${res.data.access}`;
-          return api(error.config); // retry original request
+          return api(error.config); // retry with new token
         }
       } catch (refreshError) {
         console.error("Refresh token failed:", refreshError);
