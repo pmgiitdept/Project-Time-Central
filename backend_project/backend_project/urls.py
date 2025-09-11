@@ -28,7 +28,7 @@ def home(request):
     return HttpResponse("Project Time Central Backend is running!")
 
 urlpatterns = [
-    path("", home, lambda request: HttpResponse("OK"), name='health_check'),
+    path("", home, name='health_check'),
     path('admin/', admin.site.urls),
     path("api/auth/", include("accounts.urls")),
     path('api/auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
