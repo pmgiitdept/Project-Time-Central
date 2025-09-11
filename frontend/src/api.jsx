@@ -7,7 +7,7 @@ const isLocalhost = window.location.hostname === "localhost";
 // ✅ Use local backend when developing, otherwise use your deployed backend
 const baseURL = isLocalhost
   ? "http://127.0.0.1:8000/api/"
-  : "https://project-time-central-1.onrender.com/api/";
+  : "https://project-time-central.onrender.com/api/";
 
 const api = axios.create({
   baseURL,
