@@ -34,17 +34,18 @@ api.interceptors.response.use(
       try {
         const refresh = localStorage.getItem("refresh_token");
         if (refresh) {
+          // ✅ Call your Django refresh endpoint
           const res = await axios.post(`${baseURL}auth/token/refresh/`, {
             refresh,
           });
           localStorage.setItem("access_token", res.data.access);
           error.config.headers.Authorization = `Bearer ${res.data.access}`;
-          return api(error.config); // retry with new token
+          return api(error.config); // retry original request
         }
       } catch (refreshError) {
         console.error("Refresh token failed:", refreshError);
         localStorage.clear();
-        window.location.href = "/"; // force login
+        window.location.href = "/"; // force login again
       }
     }
     return Promise.reject(error);
