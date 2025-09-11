@@ -15,23 +15,22 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-#backend_project/urls.py
+# backend_project/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import HttpResponse
-from accounts.views import MyTokenObtainPairView, user_stats
+from accounts.views import user_stats
 from files.views import file_stats
 
 def home(request):
     return HttpResponse("Project Time Central Backend is running!")
 
 urlpatterns = [
-    path("", home, name='health_check'),
+    path("", home, lambda request: HttpResponse("OK"), name='health_check'),
     path('admin/', admin.site.urls),
-    path("api/auth/", include("accounts.urls")),
-    path('api/auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path("api/auth/", include("accounts.urls")),   # ✅ this already includes /api/auth/login/
     path("api/", include("files.urls")),
     path("api/file-stats/", file_stats, name="file-stats"),
     path("api/user-stats/", user_stats, name="user-stats"),
