@@ -85,6 +85,7 @@ WSGI_APPLICATION = 'backend_project.wsgi.application'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "https://project-time-central.onrender.com",
+    "https://project-time-central-1.onrender.com",
 ]
 
 # Database
