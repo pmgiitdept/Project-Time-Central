@@ -49,23 +49,6 @@
   height: 40px;
 }
 
-.upload-section {
-  margin: 2rem;
-  margin-top: 8rem;
-  padding: 1.5rem;
-  background: #f9f9f9;
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
-.table-section {
-  margin: 2rem;
-  background: #fff;
- 
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
 .upload-card {
   margin: 1.5rem 0;
   padding: 1.5rem;
@@ -121,4 +104,49 @@
   margin-top: 1rem;
   font-size: 0.95rem;
   color: #444;
+}
+
+.main-section {
+  display: flex;
+  gap: 2rem; 
+  margin: 2rem;
+  margin-top: 6rem;
+  justify-content: center; 
+  align-items: center; 
+}
+
+.upload-section {
+  width: 400px;       
+  flex-shrink: 0;     
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.table-section {
+  flex: 1;            
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.section-card {
+  flex: 1;
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 1024px) {
+  .main-section {
+    flex-direction: column;
+  }
+
+  .upload-section,
+  .table-section {
+    width: 100%;
+    max-width: 100%;
+  }
 }
