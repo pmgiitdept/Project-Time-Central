@@ -89,6 +89,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://project-time-central.onrender.com",    # backend domain
 ]
 
+CORS_ALLOW_ALL_ORIGINS = True
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
