@@ -1,8 +1,9 @@
 // src/api.js
 import axios from "axios";
 
+// ✅ Use environment variable for flexibility (local vs production)
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/", // adjust to your backend URL
+  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/",
 });
 
 // 🔑 Attach access token to every request
@@ -26,12 +27,14 @@ api.interceptors.response.use(
       try {
         const refresh = localStorage.getItem("refresh_token");
         if (refresh) {
-          const res = await axios.post("http://127.0.0.1:8000/api/auth/users/", {
-            refresh,
-          });
+          // ✅ Correct refresh endpoint
+          const res = await axios.post(
+            `${api.defaults.baseURL}auth/token/refresh/`,
+            { refresh }
+          );
           localStorage.setItem("access_token", res.data.access);
           error.config.headers.Authorization = `Bearer ${res.data.access}`;
-          return api(error.config); // retry with new token
+          return api(error.config); // retry original request
         }
       } catch (refreshError) {
         console.error("Refresh token failed:", refreshError);
