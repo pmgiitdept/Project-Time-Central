@@ -14,8 +14,10 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
+      // ✅ Hitting your custom_login endpoint
       const res = await api.post("auth/login/", { username, password });
 
+      // ✅ Save tokens + role
       localStorage.setItem("access_token", res.data.access);
       localStorage.setItem("refresh_token", res.data.refresh);
       localStorage.setItem("role", res.data.role);
@@ -23,11 +25,12 @@ export default function Login() {
 
       toast.success(`Welcome ${res.data.username}!`);
 
+      // ✅ Redirect based on role
       if (res.data.role === "admin") navigate("/admin");
       else if (res.data.role === "client") navigate("/client");
       else navigate("/viewer");
     } catch (err) {
-      console.error(err);
+      console.error("Login failed:", err.response?.data || err.message);
       toast.error("Login failed. Check credentials.");
     }
   };
@@ -37,6 +40,7 @@ export default function Login() {
       {/* Navbar */}
       <nav className="login-navbar">
         <div className="navbar-left">
+          {/* ✅ Use /public images instead of /src */}
           <img src="/pmgi.png" alt="Logo" className="navbar-logo" />
           <div className="navbar-text">
             <h1>PROFESSIONAL MAINTENANCE GROUP, INC.</h1>
@@ -50,13 +54,12 @@ export default function Login() {
       </nav>
 
       <img src="/ptc-logo.png" alt="App Logo" className="login-top-logo" />
+
       {/* Card */}
       <div className="login-card">
-        {/* Keep the title here */}
         <h1 className="login-title">Welcome! Please log in</h1>
 
         <form onSubmit={handleLogin} className="login-form">
-          {/* Username field */}
           <div className="input-group">
             <input
               type="text"
@@ -68,7 +71,6 @@ export default function Login() {
             <label htmlFor="username">Username</label>
           </div>
 
-          {/* Password field */}
           <div className="input-group">
             <input
               type="password"
