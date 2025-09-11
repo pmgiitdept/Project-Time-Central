@@ -28,7 +28,7 @@ def home(request):
     return HttpResponse("Project Time Central Backend is running!")
 
 urlpatterns = [
-    path("", home, lambda request: HttpResponse("OK"), name='health_check'),
+    path("", home, name='health_check'),
     path('admin/', admin.site.urls),
     path("api/auth/", include("accounts.urls")),   # ✅ this already includes /api/auth/login/
     path("api/", include("files.urls")),
