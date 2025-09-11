@@ -501,13 +501,19 @@ export default function FileContent({ fileId, role }) {
               <div>
                 <strong>Status:</strong>
                 {isEditable ? (
-                  <select value={status} onChange={(e) => handleStatusChange(fileId, e.target.value)}>
-                    <option value="pending">Pending</option>
-                    <option value="verified">Verified</option>
-                    <option value="rejected">Rejected</option>
+                  <select
+                    value={status}
+                    onChange={(e) => handleStatusChange(fileId, e.target.value)}
+                    className={`status-select ${status.toLowerCase()}`}
+                  >
+                    <option value="pending" className="pending">Pending</option>
+                    <option value="verified" className="verified">Verified</option>
+                    <option value="rejected" className="rejected">Rejected</option>
                   </select>
                 ) : (
-                  <span>{status}</span>
+                  <span className={`status-span ${status.toLowerCase()}`}>
+                    {status}
+                  </span>
                 )}
               </div>
             </div>
