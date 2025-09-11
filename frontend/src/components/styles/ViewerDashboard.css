@@ -48,6 +48,9 @@
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+  max-width: 1000px;  /* Keep preview narrower */
+  margin-left: auto;
+  margin-right: auto; /* Center horizontally */
 }
 
 .file-content-title {
@@ -55,4 +58,16 @@
   font-weight: 600;
   margin-bottom: 1rem;
   color: #333;
+}
+
+.content-section {
+  margin-top: 80px; /* Push below navbar height */
+  display: flex;
+  justify-content: center; /* Centers horizontally */
+  padding: 2rem;
+}
+
+.content-section > * {
+  max-width: 1500px; /* Limit width of children */
+  width: 100%;
 }
