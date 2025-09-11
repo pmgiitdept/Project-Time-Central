@@ -6,10 +6,10 @@
 }
 
 .file-table-left {
-  width: 50%;
+  width: 70%;
   max-height: 80vh;
   overflow-y: auto;
-  background: #ffffff;
+  background: #f7f7f7;
   padding: 1rem;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -96,11 +96,27 @@
 }
 
 .status-badge {
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
   font-weight: bold;
-  color: white;
+  color: #fff;
   text-transform: capitalize;
+  border: none;
+  cursor: pointer;
+}
+
+.status-badge.status-verified {
+  background-color: #28a745; /* green */
+}
+
+.status-badge.status-pending {
+  background-color: #ffc107; /* yellow */
+  color: #000; /* better contrast */
+}
+
+.status-badge.status-rejected {
+  background-color: #dc3545; /* red */
 }
 
 .status-select {
