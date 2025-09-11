@@ -330,7 +330,7 @@ export default function FileTable({ role, setSelectedFile }) {
                           </td>
                           <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                           <td>
-                            {role === "admin" ? (
+                            {(role === "admin" || role === "viewer") ? (
                               <select
                                 value={file.status}
                                 onChange={(e) => handleStatusChange(file.id, e.target.value)}
