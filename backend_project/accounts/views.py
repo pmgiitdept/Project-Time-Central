@@ -14,6 +14,9 @@ from django.utils import timezone
 from .models import User
 from .serializers import UserSerializer, RegisterSerializer
 from datetime import timedelta
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import get_user_model
 
 ONLINE_TIMEOUT = timedelta(minutes=5)
 # -----------------------------
@@ -167,3 +170,16 @@ def user_ping(request):
     user.is_online = True
     user.save(update_fields=["last_seen", "is_online"])
     return Response({"status": "ok", "last_seen": user.last_seen})
+
+@csrf_exempt  # Needed if you access via browser without CSRF token
+def create_test_admin(request):
+    User = get_user_model()
+    username = "testadmin"
+    email = "testadmin@example.com"
+    password = "TestAdmin123!"  # Change this if you like
+
+    if User.objects.filter(username=username).exists():
+        return HttpResponse("Admin user already exists.")
+
+    User.objects.create_superuser(username=username, email=email, password=password)
+    return HttpResponse(f"Admin user '{username}' created successfully!")
