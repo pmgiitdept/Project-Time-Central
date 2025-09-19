@@ -56,7 +56,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
 
         const data = res.data;
         allMessages = [...allMessages, ...data.results];
-        url = data.next ? data.next.replace("http://127.0.0.1:8000/api", "") : null;
+        url = data.next ? data.next.replace(`${window.location.origin}/api`, "") : null;
       }
 
       allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -87,7 +87,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
     if (!currentUser?.token || ws.current) return;
 
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsHost = "localhost:8000";
+    const wsHost = window.location.host;
     const wsUrl = `${wsScheme}://${wsHost}/ws/chat/${roomName}/?token=${currentUser.token}`;
 
     ws.current = new WebSocket(wsUrl);
