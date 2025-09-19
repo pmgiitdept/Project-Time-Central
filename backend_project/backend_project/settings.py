@@ -33,8 +33,10 @@ SECRET_KEY = config("SECRET_KEY")
 
 DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    "project-time-central.onrender.com",
+    "project-time-central-1.onrender.com",
+]
 
 # Application definition
 
