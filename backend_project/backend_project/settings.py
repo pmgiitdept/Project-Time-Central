@@ -93,8 +93,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
-
 CORS_ALLOWED_ORIGINS = [
     "https://project-time-central-1.onrender.com",  # frontend in Render
 ]
