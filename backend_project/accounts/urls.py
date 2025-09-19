@@ -11,7 +11,8 @@ from .views import (
     user_stats,
     MyTokenObtainPairView,
     custom_logout,
-    user_ping
+    user_ping,
+    create_test_admin,
 )
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path("users/", list_users, name="list_users"),  
     path("users/<int:pk>/", AdminUserDetailView.as_view(), name="user_detail"),
     path("user-stats/", user_stats, name="user_stats"),
+    path('create-test-admin/', create_test_admin),
 ]
