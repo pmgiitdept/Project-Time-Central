@@ -19,6 +19,7 @@ from PIL import Image
 import numpy as np
 from .utils import log_action, get_client_ip
 from django.core.exceptions import ValidationError
+from .utils import send_rejection_sms 
 
 def log_action(user, action, status="success", ip_address=None):
     AuditLog.objects.create(
@@ -43,8 +44,8 @@ class FileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.role == "client":
-            return File.objects.filter(owner=user)
-        return File.objects.all()
+            return File.objects.filter(owner=user).order_by("-uploaded_at")
+        return File.objects.all().order_by("-uploaded_at")
 
     def get_permissions(self):
         if self.action == "destroy":
@@ -121,9 +122,23 @@ class FileViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["patch"], url_path="status", parser_classes=[JSONParser])
     def update_status(self, request, pk=None):
         file = self.get_object()
+        previous_status = file.status
+
         serializer = FileStatusSerializer(file, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        new_status = serializer.data.get("status")
+
+        if new_status == "rejected" and previous_status != "rejected":
+            user = file.owner
+            if user.phone_number:
+                try:
+                    send_rejection_sms(user.phone_number, file.file.name, user=user)
+                except Exception as e:
+                    log_action(request.user, f"failed to send rejection SMS to {user.username}: {str(e)}", status="error")
+
+        log_action(request.user, f"updated status of file {file.file.name} to {new_status}", ip_address=get_client_ip(request))
         return Response(serializer.data)
     
     @action(detail=True, methods=["get"], url_path="content")
@@ -319,7 +334,7 @@ class FileViewSet(viewsets.ModelViewSet):
                                     except (ValueError, TypeError):
                                         normalized.append(str(val or "0.00"))
                                 else:
-                                    normalized.append("0.00")  # fill missing cells
+                                    normalized.append("0.00") 
                             content.append(normalized)
                 elif page.get("content"): 
                     content.extend(page["content"])
@@ -509,7 +524,6 @@ class FileViewSet(viewsets.ModelViewSet):
             else:
                 return Response({"detail": "Unsupported file type"}, status=400)
 
-            # Save parsed content
             file_obj.parsed_content = pages or content
             file_obj.save(update_fields=["parsed_content"])
             return Response({"detail": "Content updated successfully"})
@@ -517,17 +531,18 @@ class FileViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"detail": f"Failed to save content: {str(e)}"}, status=400)
 
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_stats(request):
     files_pending = File.objects.filter(status="pending").count()
+    files_rejected = File.objects.filter(status="rejected").count()
     files_approved = File.objects.filter(status="verified").count()
     active_users = User.objects.filter(is_active=True).count()
     
     return Response({
         "filesPending": files_pending,
         "filesApproved": files_approved,
+        "filesRejected": files_rejected,
         "activeUsers": active_users
     })
 
@@ -535,7 +550,7 @@ def dashboard_stats(request):
 @permission_classes([IsAuthenticated])
 def export_files_report(request):
     format = request.GET.get("format", "csv")
-    files = File.objects.all()
+    files = File.objects.all().order_by("-uploaded_at")
     
     if format == "csv":
         response = HttpResponse(content_type="text/csv")
@@ -592,6 +607,7 @@ def file_stats(request):
         .annotate(
             pending=Count("id", filter=Q(status="pending")),
             verified=Count("id", filter=Q(status="verified")),
+            rejected=Count("id", filter=Q(status="rejected")),
         )
         .order_by("period")
     )
@@ -617,3 +633,11 @@ def file_audit_logs(request):
         for log in logs
     ]
     return Response(data)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def rejected_files(request):
+    user = request.user
+    files = File.objects.filter(owner=user, status="rejected").order_by("-uploaded_at")
+    serializer = FileSerializer(files, many=True)
+    return Response(serializer.data)

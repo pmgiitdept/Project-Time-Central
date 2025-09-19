@@ -1,29 +1,14 @@
 // pages/AdminDashboard.jsx
 import { useState, useEffect } from "react";
-import { 
-  FaTachometerAlt, 
-  FaFileAlt, 
-  FaUsers, 
-  FaClipboardList, 
-  FaChartBar, 
-  FaCog, 
-  FaCheckCircle, 
+import { FaTachometerAlt, FaFileAlt, FaUsers, FaClipboardList, FaChartBar, FaCog, FaCheckCircle, 
   FaTrash,
   FaUserClock,
   FaUserShield, 
-  FaDownload 
+  FaDownload, 
+  FaCommentAlt,
+  FaBan
 } from "react-icons/fa";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
+import {LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart,
   Pie,
   Cell
@@ -31,10 +16,16 @@ import {
 import FileTable from "../components/FileTable";
 import FileContent from "../components/FileContent";
 import LogoutButton from "../components/LogoutButton";
+import OverallResultsTable from "../components/OverallResultsTable";
+import ChatSection from "../components/ChatSections";
+import UserList from "../components/UserLists";
+import RoomList from "../components/RoomList";
 import "../components/styles/AdminDashboard.css"; 
 import api from "../api";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { motion, AnimatePresence } from "framer-motion";
+import { UserPlus, UserMinus, PlusCircle, MinusCircle } from "lucide-react";
 
 export default function AdminDashboard() {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -55,6 +46,21 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState("");
   const [showAddUser, setShowAddUser] = useState(false);
   const [originalSettings, setOriginalSettings] = useState({});
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [roomName, setRoomName] = useState("general");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [hasUnread, setHasUnread] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [showUserList, setShowUserList] = useState(true);
+  const [showRooms, setShowRooms] = useState(true);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+
+  const [joinedRooms, setJoinedRooms] = useState([]);
+
+  const token = localStorage.getItem("access_token");
+  const username = localStorage.getItem("username");
 
   const [settingsId, setSettingsId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("");
@@ -83,7 +89,19 @@ export default function AdminDashboard() {
     { key: "reports", label: "Reports", icon: <FaChartBar /> },
     { key: "settings", label: "Settings", icon: <FaCog /> },
   ];
-  
+
+  const handleNewMessage = (room, message) => {
+    setMessages((prev) => [...prev, message]);
+
+    if (room !== roomName) {
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [room]: (prev[room] || 0) + 1,
+      }));
+      setHasUnread(true); 
+    }
+  };
+
   const sortedLogs = [...auditLogs].sort((a, b) => {
     if (!sortConfig.key) return 0;
 
@@ -171,10 +189,13 @@ export default function AdminDashboard() {
 
   const fetchUserStats = async (period = "day") => {
     try {
-      const response = await api.get(`/user-stats/?period=${period}`);
+      const token = localStorage.getItem("access_token");
+      const response = await api.get(`/user-stats/?period=${period}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const formatted = response.data.map(item => ({
         ...item,
-        period: new Date(item.period).toLocaleDateString(), 
+        period: new Date(item.period).toLocaleDateString(),
       }));
       setUserStats(formatted);
     } catch (error) {
@@ -218,75 +239,84 @@ export default function AdminDashboard() {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get("/auth/users/");
+      const token = localStorage.getItem("access_token");
+      const response = await api.get("/auth/users/", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const sortedUsers = response.data.sort((a, b) => {
         if (!a.last_login) return 1;  
         if (!b.last_login) return -1;
         return new Date(b.last_login) - new Date(a.last_login);
       });
       setUsers(sortedUsers);
+
+      const found = response.data.find(u => u.username === username);
+      if (found) {
+        setCurrentUser({ ...found, token }); 
+      }
+
     } catch (error) {
       console.error("Error fetching users:", error);
     }
   };
 
   const fetchSettings = async () => {
-  try {
-    const response = await api.get("/settings/"); 
-    if (response.data.length) {
-      const s = response.data[0];
-      setSettings({
-        siteName: s.site_name,
-        maxFileSize: s.max_file_size,
-        allowedTypes: s.allowed_types,
-        retentionDays: s.retention_days || 30,
-        requireVerification: s.require_verification || false,
-        autoArchive: s.auto_archive || false,
-        defaultRole: s.default_role || "client",
-        requirePasswordReset: s.require_password_reset || false,
-        autoDisableInactive: s.auto_disable_inactive || 0,
-        logDownloads: s.log_downloads || false,
-        maxLoginAttempts: s.max_login_attempts || 5,
-        enable2FA: s.enable_2fa || false
-      });
-      setSettingsId(s.id);
-    } else {
-      const defaultSettings = {
-        site_name: "Project Time Central",
-        max_file_size: 50,
-        allowed_types: ["pdf", "docx"],
-        retention_days: 30,
-        require_verification: false,
-        auto_archive: false,
-        default_role: "client",
-        require_password_reset: false,
-        auto_disable_inactive: 0,
-        log_downloads: false,
-        max_login_attempts: 5,
-        enable_2fa: false
-      };
-      const createResp = await api.post("/settings/", defaultSettings);
-      const s = createResp.data;
-      setSettings({
-        siteName: s.site_name,
-        maxFileSize: s.max_file_size,
-        allowedTypes: s.allowed_types,
-        retentionDays: s.retention_days,
-        requireVerification: s.require_verification,
-        autoArchive: s.auto_archive,
-        defaultRole: s.default_role,
-        requirePasswordReset: s.require_password_reset,
-        autoDisableInactive: s.auto_disable_inactive,
-        logDownloads: s.log_downloads,
-        maxLoginAttempts: s.max_login_attempts,
-        enable2FA: s.enable_2fa
-      });
-      setSettingsId(s.id);
+    try {
+      const response = await api.get("/settings/"); 
+      if (response.data.length) {
+        const s = response.data[0];
+        setSettings({
+          siteName: s.site_name,
+          maxFileSize: s.max_file_size,
+          allowedTypes: s.allowed_types,
+          retentionDays: s.retention_days || 30,
+          requireVerification: s.require_verification || false,
+          autoArchive: s.auto_archive || false,
+          defaultRole: s.default_role || "client",
+          requirePasswordReset: s.require_password_reset || false,
+          autoDisableInactive: s.auto_disable_inactive || 0,
+          logDownloads: s.log_downloads || false,
+          maxLoginAttempts: s.max_login_attempts || 5,
+          enable2FA: s.enable_2fa || false
+        });
+        setSettingsId(s.id);
+      } else {
+        const defaultSettings = {
+          site_name: "Project Time Central",
+          max_file_size: 50,
+          allowed_types: ["pdf", "docx"],
+          retention_days: 30,
+          require_verification: false,
+          auto_archive: false,
+          default_role: "client",
+          require_password_reset: false,
+          auto_disable_inactive: 0,
+          log_downloads: false,
+          max_login_attempts: 5,
+          enable_2fa: false
+        };
+        const createResp = await api.post("/settings/", defaultSettings);
+        const s = createResp.data;
+        setSettings({
+          siteName: s.site_name,
+          maxFileSize: s.max_file_size,
+          allowedTypes: s.allowed_types,
+          retentionDays: s.retention_days,
+          requireVerification: s.require_verification,
+          autoArchive: s.auto_archive,
+          defaultRole: s.default_role,
+          requirePasswordReset: s.require_password_reset,
+          autoDisableInactive: s.auto_disable_inactive,
+          logDownloads: s.log_downloads,
+          maxLoginAttempts: s.max_login_attempts,
+          enable2FA: s.enable_2fa
+        });
+        setSettingsId(s.id);
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
     }
-  } catch (error) {
-    console.error("Error fetching settings:", error);
-  }
-};
+  };
 
   const updateSettings = async () => {
     if (!settingsId) return alert("Settings ID not found.");
@@ -319,7 +349,7 @@ export default function AdminDashboard() {
     try {
       const response = await api.get("/audit-logs/");
 
-      console.log("Audit logs fetched:", response.data);
+      // console.log("Audit logs fetched:", response.data);
 
       const logs = Array.isArray(response.data)
         ? response.data
@@ -414,7 +444,8 @@ export default function AdminDashboard() {
     const tableRows = fileStats.map(item => [
       item.period,
       item.pending,
-      item.verified
+      item.verified,
+      item.rejected
     ]);
 
     doc.autoTable({
@@ -430,11 +461,12 @@ export default function AdminDashboard() {
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [role, setRole] = useState("client"); 
+    const [role, setRole] = useState("client");
+    const [phoneNumber, setPhoneNumber] = useState("");
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      if (!username || !email || !password) {
+      if (!username || !email || !password || !phoneNumber) {
         alert("All fields are required");
         return;
       }
@@ -442,11 +474,11 @@ export default function AdminDashboard() {
         alert("Invalid role selected");
         return;
       }
-      onCreate({ username, email, password, password2: password, role });
+      onCreate({ username, email, password, password2: password, role, phone_number: phoneNumber });
     };
 
     return (
-      <div className="modal-overlay">
+      <div className="modal-overlays">
         <div className="modal">
           <h3>Add New User</h3>
           <form onSubmit={handleSubmit} className="add-user-form">
@@ -470,6 +502,16 @@ export default function AdminDashboard() {
                 required 
               />
             </div>
+            <div className="form-group">
+            <label>Phone Number</label>
+            <input
+              type="text"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="Enter phone number"
+              required
+            />
+          </div>
             <div className="form-group">
               <label>Password</label>
               <input 
@@ -539,11 +581,26 @@ export default function AdminDashboard() {
         <div className="dashboard-content">
           {/* Dashboard Overview */}
           {activeSection === "dashboard" && (
-            <div className="dashboard-overview space-y-6">
-              <h2 className="text-2xl font-bold">Overview</h2>
-
+            <motion.div
+              className="dashboard-overview space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}        
+              exit={{ opacity: 0, y: -20 }}        
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
+              <div className="title-container">
+              <h2 className="text-2xl font-bold title">Dashboard Overview</h2>
+              </div>
               {/* Top Cards */}
               <div className="cards grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
+                  <div className="card-icon text-green-500 text-3xl"><FaCheckCircle /></div>
+                  <div className="card-info ml-3">
+                    <h3 className="text-lg font-semibold">Files Verified</h3>
+                    <p className="text-xl">{stats.filesApproved || 0}</p>
+                  </div>
+                </div>
+                
                 <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
                   <div className="card-icon text-orange-400 text-3xl"><FaFileAlt /></div>
                   <div className="card-info ml-3">
@@ -553,10 +610,10 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="card p-4 rounded-2xl shadow bg-white flex items-center">
-                  <div className="card-icon text-green-500 text-3xl"><FaCheckCircle /></div>
+                  <div className="card-icon text-orange-400 text-3xl"><FaBan /></div>
                   <div className="card-info ml-3">
-                    <h3 className="text-lg font-semibold">Files Verified</h3>
-                    <p className="text-xl">{stats.filesApproved || 0}</p>
+                    <h3 className="text-lg font-semibold">Files Rejected</h3>
+                    <p className="text-xl">{stats.filesRejected || 0}</p>
                   </div>
                 </div>
 
@@ -591,7 +648,7 @@ export default function AdminDashboard() {
                       </select>
                     </div>
                   </div>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <LineChart data={fileStats}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="period" />
@@ -600,6 +657,7 @@ export default function AdminDashboard() {
                       <Legend />
                       <Line type="monotone" dataKey="pending" stroke="#f6ad55" />
                       <Line type="monotone" dataKey="verified" stroke="#48bb78" />
+                      <Line type="monotone" dataKey="rejected" stroke="#c53636ff" />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -625,7 +683,7 @@ export default function AdminDashboard() {
                       </select>
                     </div>
                   </div>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={userStats}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="period" />
@@ -637,7 +695,11 @@ export default function AdminDashboard() {
                   </ResponsiveContainer>
                 </div>
               </div>
-            </div>
+
+              <div className="overall-table-section">
+                <OverallResultsTable role={role} />
+              </div>
+            </motion.div>
           )}
 
           {/* Files Section */}
@@ -650,13 +712,53 @@ export default function AdminDashboard() {
 
           {/* Users Section */}
           {activeSection === "users" && (
-            <div className="users-card">
+            <motion.div
+              className="users-card"
+              initial={{ opacity: 0, y: 20 }}     
+              animate={{ opacity: 1, y: 0 }}      
+              exit={{ opacity: 0, y: -20 }}       
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               <div className="users-section">
                 <div className="users-header">
                   <h2>Users Management</h2>
                   <div className="header-buttons">
                     <button className="btn-primary" onClick={() => setShowAddUser(true)}>+ Add User</button>
                     <button className="btn-secondary" onClick={refreshLastLogin}>⟳ Refresh</button>
+                  </div>
+                </div>
+
+                {/* Flexible Additional Container */}
+                <div className="user-cards-container" style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", marginTop: "1.5rem", flexWrap: "wrap", justifyContent: "center" }}>
+                  {/* Active Users Card */}
+                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
+                    <FaUserClock size={32} className="text-blue-500 mb-2" />
+                    <h3 className="text-lg font-semibold">Active Users (Week)</h3>
+                    <p className="text-xl font-bold">{activeThisWeek}</p>
+                  </div>
+
+                  {/* Pending Users Card */}
+                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
+                    <FaUsers size={32} className="text-orange-400 mb-2" />
+                    <h3 className="text-lg font-semibold">Inactive Users</h3>
+                    <p className="text-xl font-bold">{inactiveUsers.length}</p>
+                  </div>
+
+                  {/* Role Distribution Card */}
+                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
+                    <FaUserShield size={32} className="text-green-500 mb-2" />
+                    <h3 className="text-lg font-semibold">Roles Distribution</h3>
+                    <div style={{ width: "100%", height: 120 }}>
+                      <ResponsiveContainer>
+                        <PieChart>
+                          <Pie data={rolesData} dataKey="value" nameKey="name" innerRadius={25} outerRadius={35} paddingAngle={3}>
+                            {rolesData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
 
@@ -735,52 +837,24 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
-                {/* Flexible Additional Container */}
-                <div className="user-cards-container" style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", marginTop: "1.5rem", flexWrap: "wrap", justifyContent: "center" }}>
-                  {/* Active Users Card */}
-                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
-                    <FaUserClock size={32} className="text-blue-500 mb-2" />
-                    <h3 className="text-lg font-semibold">Active Users (Week)</h3>
-                    <p className="text-xl font-bold">{activeThisWeek}</p>
-                  </div>
-
-                  {/* Pending Users Card */}
-                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
-                    <FaUsers size={32} className="text-orange-400 mb-2" />
-                    <h3 className="text-lg font-semibold">Inactive Users</h3>
-                    <p className="text-xl font-bold">{inactiveUsers.length}</p>
-                  </div>
-
-                  {/* Role Distribution Card */}
-                  <div className="card p-4 rounded-2xl shadow bg-white flex flex-col items-center" style={{ minWidth: "200px" }}>
-                    <FaUserShield size={32} className="text-green-500 mb-2" />
-                    <h3 className="text-lg font-semibold">Roles Distribution</h3>
-                    <div style={{ width: "100%", height: 120 }}>
-                      <ResponsiveContainer>
-                        <PieChart>
-                          <Pie data={rolesData} dataKey="value" nameKey="name" innerRadius={25} outerRadius={35} paddingAngle={3}>
-                            {rolesData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
                 {showAddUser && (
                   <AddUserModal onClose={() => setShowAddUser(false)} onCreate={addUser} />
                 )}
               </div>
-            </div>
+            </motion.div>
           )}
           {/* Audit Logs Section */}
           {activeSection === "audit" && (
-            <div className="audit-logs">
+            <motion.div
+              className="audit-logs"
+              initial={{ opacity: 0, y: 20 }}     
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -20 }}       
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               <h2>Audit Logs</h2>
-
               {/* Stats Cards */}
-              <div className="audit-cards grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="audit-cards mb-6">
                 <div className="card p-4 rounded-2xl shadow bg-white">
                   <h3 className="text-lg font-semibold">Total Logs</h3>
                   <p className="text-xl font-bold">{auditLogs.length}</p>
@@ -978,12 +1052,18 @@ export default function AdminDashboard() {
                   Next
                 </button>
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Reports Section */}
           {activeSection === "reports" && (
-            <div className="reports">
+            <motion.div
+              className="reports"
+              initial={{ opacity: 0, y: 20 }}   
+              animate={{ opacity: 1, y: 0 }}        
+              exit={{ opacity: 0, y: -20 }}        
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               <h2>Reports</h2>
 
               <div className="report-filters mb-4 flex gap-2">
@@ -1006,12 +1086,18 @@ export default function AdminDashboard() {
               <button className="report-btn" onClick={() => exportPDF}>
                 <FaDownload /> Export PDF
               </button>
-            </div>
+            </motion.div>
           )}
 
           {/* Settings Section */}
           {activeSection === "settings" && (
-            <div className="settings-wrapper">
+            <motion.div
+              className="settings-wrapper"
+              initial={{ opacity: 0, y: 20 }}    
+              animate={{ opacity: 1, y: 0 }}        
+              exit={{ opacity: 0, y: -20 }}      
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
               <div className="settings-container p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* File Upload Settings Card */}
                 <div className="settings-card p-4 rounded-2xl shadow bg-white">
@@ -1149,10 +1235,162 @@ export default function AdminDashboard() {
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
+      {/* Floating Chat Button + Chat Window */}
+      <div className="chat-float">
+      {/* Floating Chat Button */}
+      <button
+        className="chat-toggle-btn"
+        onClick={() => {
+          setChatOpen(prev => !prev);
+          if (!chatOpen) setHasUnread(false);
+        }}
+      >
+        💬
+        {hasUnread && <span className="chat-notification-dot"></span>}
+      </button>
+
+      {/* Floating UserList + RoomList Toggles */}
+      <AnimatePresence>
+        {chatOpen && (
+          <>
+            <motion.button
+              key="userlist-toggle"
+              className="userlist-floating-toggle"
+              onClick={() => setShowUserList(prev => !prev)}
+              title={showUserList ? "Hide Users" : "Show Users"}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ duration: 0.3 }}
+            >
+              {showUserList ? (
+                <span className="icon-text">
+                  <UserMinus size={18} /> Hide Users
+                </span>
+              ) : (
+                <span className="icon-text">
+                  <UserPlus size={18} /> Show Users
+                </span>
+              )}
+            </motion.button>
+
+            <motion.button
+              key="roomlist-toggle"
+              className="roomlist-floating-toggle"
+              onClick={() => setShowRooms(prev => !prev)}
+              title={showRooms ? "Hide Rooms" : "Show Rooms"}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 50 }}
+              transition={{ duration: 0.3 }}
+            >
+              {showRooms ? (
+                <span className="icon-text">
+                  <MinusCircle size={18} /> Hide Rooms
+                </span>
+              ) : (
+                <span className="icon-text">
+                  <PlusCircle size={18} /> Show Rooms
+                </span>
+              )}
+            </motion.button>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Popup */}
+      <AnimatePresence>
+        {chatOpen && (
+          <motion.div
+            className={`chat-popup`}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 50 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          >
+            <div className="chat-container">
+              {/* RoomList */}
+              <AnimatePresence>
+                {showRooms && (
+                  <motion.div
+                    key="roomlist"
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 50 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <RoomList
+                      currentUser={currentUser}
+                      onSelectRoom={(room) => {
+                        setSelectedRoom(room); 
+                        setRoomName(room.name); 
+                        setMessages([]);
+                        setHasUnread(false);
+                        setUnreadCounts(prev => {
+                          const updated = { ...prev };
+                          delete updated[room.name];
+                          return updated;
+                        });
+                      }}
+                      joinedRooms={joinedRooms}
+                      isVisible={true}
+                    />
+
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* UserList */}
+              <AnimatePresence>
+                {showUserList && (
+                  <motion.div
+                    key="userlist"
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 50 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    <UserList
+                      className={`user-list-wrapper`}
+                      currentUser={currentUser}
+                      unreadCounts={unreadCounts}
+                      onSelectRoom={(room) => {
+                        setSelectedRoom(room);
+                        setRoomName(room.name);
+                        setMessages([]);
+                        setHasUnread(false);
+                        setUnreadCounts(prev => {
+                          const updated = { ...prev };
+                          delete updated[room.name];
+                          return updated;
+                        });
+                      }}
+                      isVisible={true}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <ChatSection
+                role={role}
+                currentUser={currentUser}
+                roomName={roomName}
+                roomId={selectedRoom?.id}
+                roomCreatorId={selectedRoom?.created_by?.id}
+                messages={messages}
+                setMessages={setMessages}
+                onNewMessage={handleNewMessage}
+                users={users}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
     </div>
   );
 }

@@ -2,10 +2,9 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/", // adjust to your backend URL
+  baseURL: "http://127.0.0.1:8000/api/",
 });
 
-// 🔑 Attach access token to every request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access_token");
@@ -17,7 +16,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// 🔄 Auto-refresh token if expired
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -26,17 +24,17 @@ api.interceptors.response.use(
       try {
         const refresh = localStorage.getItem("refresh_token");
         if (refresh) {
-          const res = await axios.post("http://127.0.0.1:8000/api/auth/users/", {
+          const res = await axios.post("http://127.0.0.1:8000/api/token/refresh/", {
             refresh,
           });
           localStorage.setItem("access_token", res.data.access);
           error.config.headers.Authorization = `Bearer ${res.data.access}`;
-          return api(error.config); // retry with new token
+          return api(error.config);
         }
       } catch (refreshError) {
         console.error("Refresh token failed:", refreshError);
         localStorage.clear();
-        window.location.href = "/"; // force login
+        window.location.href = "/";
       }
     }
     return Promise.reject(error);

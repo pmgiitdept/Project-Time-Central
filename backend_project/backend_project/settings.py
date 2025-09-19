@@ -15,6 +15,7 @@ import os
 from decouple import config
 import dj_database_url
 from dotenv import load_dotenv
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,6 +51,8 @@ INSTALLED_APPS = [
     "files",
     'corsheaders',
     'django_celery_beat',
+    'channels',
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -82,9 +85,16 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend_project.wsgi.application'
 
+ASGI_APPLICATION = "backend_project.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "https://project-time-central.onrender.com",
 ]
 
 # Database
@@ -132,7 +142,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
@@ -143,7 +152,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/

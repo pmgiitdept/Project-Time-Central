@@ -7,7 +7,8 @@ from .views import (
     export_files_report,
     AuditLogViewSet,
     SystemSettingsViewSet,
-    file_stats,
+    file_stats, 
+    rejected_files,
 )
 
 router = DefaultRouter()
@@ -20,4 +21,5 @@ urlpatterns = [
     path("dashboard-stats/", dashboard_stats, name="dashboard-stats"),
     path("files-report/", export_files_report, name="files-report"),
     path("file-stats/", file_stats, name="file-stats"),
+    path("files/rejected", rejected_files),
 ]

@@ -5,6 +5,7 @@ import api from "../api";
 import { toast } from "react-toastify";
 import FileContent from "./FileContent";
 import "./styles/FileTable.css";
+import { motion } from "framer-motion";
 
 export default function FileTable({ role, setSelectedFile }) {
   const [files, setFiles] = useState([]);
@@ -22,6 +23,12 @@ export default function FileTable({ role, setSelectedFile }) {
     verified: false,
     pending: false,
     rejected: false,
+  });
+
+  const [deleteModal, setDeleteModal] = useState({
+    open: false,
+    fileIds: [],
+    message: "",
   });
 
   const [selectedFileId, setSelectedFileId] = useState(null);
@@ -139,25 +146,49 @@ export default function FileTable({ role, setSelectedFile }) {
     }
   };
 
-  const handleDelete = async (fileId) => {
-    if (!window.confirm("Are you sure you want to delete this file?")) return;
+  const handleDeleteClick = (fileId) => {
+    setDeleteModal({
+      open: true,
+      fileIds: [fileId],
+      message: "Are you sure you want to delete this file?",
+    });
+  };
 
-    setDeleting((prev) => ({ ...prev, [fileId]: true }));
+  const handleDeleteSelectedClick = () => {
+    setDeleteModal({
+      open: true,
+      fileIds: [...selectedFiles],
+      message: `Are you sure you want to delete ${selectedFiles.length} file(s)?`,
+    });
+  };
+
+  const confirmDelete = async () => {
+    const fileIds = deleteModal.fileIds;
+    const token = localStorage.getItem("access_token");
+
     try {
-      const token = localStorage.getItem("access_token");
-      await api.delete(`files/${fileId}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const newDeleting = {};
+      fileIds.forEach(id => newDeleting[id] = true);
+      setDeleting(prev => ({ ...prev, ...newDeleting }));
 
-      setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileId));
-      setSelectedFiles((prev) => prev.filter((id) => id !== fileId));
+      await Promise.all(
+        fileIds.map((fileId) =>
+          api.delete(`files/${fileId}/`, { headers: { Authorization: `Bearer ${token}` } })
+        )
+      );
 
-      toast.success("File deleted successfully");
+      setFiles(prevFiles => prevFiles.filter(file => !fileIds.includes(file.id)));
+      setSelectedFiles(prev => prev.filter(id => !fileIds.includes(id)));
+
+      toast.success(`${fileIds.length} file(s) deleted successfully`);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete file");
+      toast.error("Failed to delete some files");
     } finally {
-      setDeleting((prev) => ({ ...prev, [fileId]: false }));
+      const newDeleting = {};
+      fileIds.forEach(id => newDeleting[id] = false);
+      setDeleting(prev => ({ ...prev, ...newDeleting }));
+      setDeleteModal({ open: false, fileIds: [], message: "" });
     }
   };
 
@@ -165,12 +196,48 @@ export default function FileTable({ role, setSelectedFile }) {
     setCollapsed((prev) => ({ ...prev, [status]: !prev[status] }));
   };
 
-  if (loading) return <p>Loading files...</p>;
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Loading files...</p>
+      </div>
+    );
+  }
 
   const statuses = ["verified", "pending", "rejected"];
 
   return (
-    <div className="file-table-wrapper">
+    <>
+    {/* Delete Confirmation Modal */}
+    {deleteModal.open && (
+      <div
+        className="modal-overlay5"
+        onClick={() => setDeleteModal({ open: false, fileIds: [], message: "" })}
+      >
+        <div className="modal-wrapper5" onClick={(e) => e.stopPropagation()}>
+          <h3>Confirm Delete</h3>
+          <p>{deleteModal.message}</p>
+          <div className="modal-actions">
+            <button
+              onClick={() => setDeleteModal({ open: false, fileIds: [], message: "" })}
+            >
+              Cancel
+            </button>
+            <button onClick={confirmDelete} className="action-btn delete">
+              {deleteModal.fileIds.some(id => deleting[id]) ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    <motion.div
+      className="file-table-wrapper"
+      initial={{ opacity: 0, y: 20 }}     
+      animate={{ opacity: 1, y: 0 }}       
+      exit={{ opacity: 0, y: -20 }}         
+      transition={{ duration: 0.5, ease: "easeInOut" }}
+    >
       {/* Left Side: FileTable */}
       <div className="file-table-left">
         <div className="table-header">
@@ -238,26 +305,11 @@ export default function FileTable({ role, setSelectedFile }) {
                 <div style={{ marginBottom: "1rem" }}>
                   <button
                     className="action-btn delete"
-                    onClick={async () => {
-                      if (!window.confirm(`Are you sure you want to delete ${selectedFiles.length} files?`)) return;
-                      try {
-                        const token = localStorage.getItem("access_token");
-                        await Promise.all(
-                          selectedFiles.map((fileId) =>
-                            api.delete(`files/${fileId}/`, { headers: { Authorization: `Bearer ${token}` } })
-                          )
-                        );
-                        toast.success(`${selectedFiles.length} file(s) deleted successfully`);
-                        setSelectedFiles([]);
-                        fetchFiles();
-                      } catch (err) {
-                        console.error(err);
-                        toast.error("Failed to delete some files");
-                      }
-                    }}
+                    onClick={handleDeleteSelectedClick}
                   >
                     Delete Selected
                   </button>
+
                 </div>
               )}
 
@@ -330,7 +382,7 @@ export default function FileTable({ role, setSelectedFile }) {
                           </td>
                           <td>{new Date(file.uploaded_at).toLocaleString()}</td>
                           <td>
-                            {role === "admin" ? (
+                            {(role === "admin" || role === "viewer")? (
                               <select
                                 value={file.status}
                                 onChange={(e) => handleStatusChange(file.id, e.target.value)}
@@ -360,10 +412,7 @@ export default function FileTable({ role, setSelectedFile }) {
                               </button>
                               <button
                                 className="action-btn delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(file.id);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(file.id); }}
                                 disabled={deleting[file.id]}
                                 style={{ flex: 1 }}
                               >
@@ -380,15 +429,6 @@ export default function FileTable({ role, setSelectedFile }) {
             </div>
           );
         })}
-        {/* Pagination 
-        <div className="pagination">
-          <button onClick={() => fetchFiles(prevPage)} disabled={!prevPage}>
-            Previous
-          </button>
-          <button onClick={() => fetchFiles(nextPage)} disabled={!nextPage}>
-            Next
-          </button>
-        </div>*/}
       </div>
       {/* Right Side: FileContent */}
       <div className="file-content-right">
@@ -411,6 +451,7 @@ export default function FileTable({ role, setSelectedFile }) {
           </p>
         )}
       </div>
-    </div>
+    </motion.div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-/* FileContent.css */
+/* styles/FileContent.css */
 .file-content-container {
   margin-top: 2rem;
   background: #fdfdfd; 
@@ -10,54 +10,67 @@
 
 .file-content-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate; 
+  border-spacing: 0;
   text-align: left;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 0.95rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .file-content-table thead {
-  background: #1a2930; 
+  background: linear-gradient(135deg, #1a2930, #243b47);
   color: #ffffff;
   position: sticky;
   top: 0;
   z-index: 5;
-  cursor: default; 
 }
 
-.file-content-table thead tr:hover {
-  background: #1a2930;
-  color: #ffffff;    
+.file-content-table thead tr th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
 }
 
 .file-content-table th,
 .file-content-table td {
-  padding: 0.8rem 1rem;
+  padding: 0.9rem 1rem;
   border-bottom: 1px solid #e0e0e0;
   vertical-align: middle;
-  border: 1px solid #000000;
   white-space: nowrap;
 }
 
+.file-content-table tbody tr {
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
 .file-content-table tbody tr:hover {
-  background: #f0f4f8; 
+  background: #f7f9fb;
+  transform: scale(1.005); 
+}
+
+.file-content-table tbody tr:nth-child(even) {
+  background: #fafafa; 
 }
 
 .file-content-table input {
   width: 100%;
   border: none;
   outline: none;
-  padding: 4px 6px;
+  padding: 6px 8px;
   font-size: 0.9rem;
   background: transparent;
-  transition: background 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
   white-space: nowrap;
-  overflow-x: auto;
   text-overflow: ellipsis;
 }
 
 .file-content-table input:focus {
-  background: #e3f2fd; 
-  border-radius: 4px;
+  background: #e3f2fd;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px #90caf9;
 }
 
 .undo-btn {
@@ -124,7 +137,7 @@
   accent-color: #1976d2;
 }
 
-.modal-overlay {
+.modal-overlay3 {
   position: fixed;
   top: 0;
   left: 0;
@@ -137,10 +150,10 @@
   z-index: 1000;
 }
 
-.modal-content {
+.modal-content3 {
   background: #fff;
   width: 95%;
-  max-width: 1600px;
+  max-width: 1700px;
   max-height: 90%;
   overflow: auto;
   padding: 1rem;
@@ -275,7 +288,6 @@
   font-size: 0.9rem;
 }
 
-/* For the select itself */
 .status-select {
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
@@ -286,7 +298,6 @@
   outline: none;
 }
 
-/* Variants */
 .status-select.pending {
   background-color: #ffc107;
   color: #000;
@@ -300,7 +311,6 @@
   background-color: #dc3545;
 }
 
-/* For non-editable spans */
 .status-span {
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
@@ -320,4 +330,145 @@
 
 .status-span.rejected {
   background-color: #dc3545;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 60vh; 
+  gap: 1rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #ddd;
+  border-top-color: #007bff; 
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-container p {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.no-data-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #888;
+  text-align: center;
+}
+
+.open-table-btn {
+  background: linear-gradient(135deg, #646cff, #4b52d4);
+  color: white;
+  border: none;
+  padding: 0.7rem 1.4rem;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(100, 108, 255, 0.25);
+}
+
+.open-table-btn:hover {
+  background: linear-gradient(135deg, #535bf2, #3c44c2);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 16px rgba(100, 108, 255, 0.35);
+}
+
+.open-table-btn:active {
+  transform: scale(0.97);
+}
+
+.open-table-btn:focus,
+.open-table-btn:active {
+  outline: none;
+  box-shadow: none; 
+}
+
+/* ========== MOBILE RESPONSIVENESS ========== */
+@media (max-width: 768px) {
+  .file-content-container {
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+
+  .file-content-table th,
+  .file-content-table td {
+    padding: 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .file-content-pagination {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .file-content-flex {
+    flex-direction: column;
+  }
+
+  .file-content-left,
+  .file-content-table-wrapper {
+    width: 100%;
+    min-width: unset;
+    max-height: 300px;
+  }
+
+  .expanded-table-wrapper {
+    max-height: 400px;
+  }
+
+  .modal-content3 {
+    width: 100%;
+    max-width: 100%;
+    max-height: 85%;
+    border-radius: 6px;
+    padding: 0.5rem;
+  }
+
+  .open-table-btn {
+    width: 100%;
+    justify-content: center;
+    font-size: 0.9rem;
+    padding: 0.6rem 1rem;
+  }
+
+  .undo-btn,
+  .save-btn {
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .file-content-table th,
+  .file-content-table td {
+    font-size: 0.75rem;
+    padding: 0.4rem;
+  }
+
+  .modal-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 }

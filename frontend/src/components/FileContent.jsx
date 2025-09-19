@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import "./styles/FileContent.css";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { motion } from "framer-motion";
 
 export default function FileContent({ fileId, role }) {
   const isEditable = role === "admin";
@@ -443,8 +444,22 @@ export default function FileContent({ fileId, role }) {
     }
   };
 
-  if (loading) return <p>Loading file content...</p>;
-  if (!pages.length) return <p>No data available</p>;
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="spinner"></div>
+        <p>Loading file content...</p>
+      </div>
+    );
+  }
+
+  if (!pages.length) {
+    return (
+      <div className="no-data-container">
+        <p>No data available</p>
+      </div>
+    );
+  }
 
   const mainHeaders = [
     "Emp.No",
@@ -483,7 +498,13 @@ export default function FileContent({ fileId, role }) {
   );
 
   return (
-    <div className="file-content-container">
+    <motion.div
+      className="file-content-container"
+      initial={{ opacity: 0, y: 20 }}       
+      animate={{ opacity: 1, y: 0 }}       
+      exit={{ opacity: 0, y: -20 }}         
+      transition={{ duration: 0.5, ease: "easeInOut" }}
+    >
       <div className="file-content-flex">
         {/* Left side: text / table controls */}
         <div className="file-content-left">
@@ -544,7 +565,12 @@ export default function FileContent({ fileId, role }) {
                 {/* <button onClick={() => setExpanded(!expanded)}>
                   {expanded ? "Collapse Table ▲" : "Expand Table ▼"}
                 </button>*/}
-                <button onClick={() => setIsModalOpen(true)}>Open Full Table 📊</button>
+                <button 
+                  className="open-table-btn" 
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  <span role="img" aria-label="table">📊</span> Open Full Table
+                </button>
               </div>
             </div>
           </div>
@@ -637,8 +663,8 @@ export default function FileContent({ fileId, role }) {
 
       {/* Full Table Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <div className="modal-overlay3">
+          <div className="modal-content3">
             <div className="modal-header">
               <h2>Full Table View</h2>
               <button onClick={() => setIsModalOpen(false)}>✖ Close</button>
@@ -666,7 +692,6 @@ export default function FileContent({ fileId, role }) {
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                setCurrentPage(0);
               }}
               style={{
                 marginBottom: "0.5rem",
@@ -749,8 +774,8 @@ export default function FileContent({ fileId, role }) {
                   })}
                   {/* Total row */}
                   <tr style={{ fontWeight: "bold", background: "#f0f0f0", border: "none" }}>
-                    <td style={{ border: "none", background: "#f0f0f0" }}></td> {/* First column blank */}
-                    <td style={{ border: "none", background: "#f0f0f0", color: "black" }}>Total</td> {/* "Total" label under second column */}
+                    <td style={{ border: "none", background: "#f0f0f0" }}></td>
+                    <td style={{ border: "none", background: "#f0f0f0", color: "black" }}>Total</td>
                     {getColumnTotals().slice(2).map((total, idx) => (
                       <td key={idx} style={{ border: "none" }}>{total}</td>
                     ))}
@@ -761,6 +786,6 @@ export default function FileContent({ fileId, role }) {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

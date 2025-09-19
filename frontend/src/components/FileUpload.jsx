@@ -3,6 +3,7 @@ import { useState } from "react";
 import api from "../api";
 import { toast } from "react-toastify";
 import "./styles/ClientDashboard.css"; 
+import { motion } from "framer-motion";
 
 export default function FileUpload({ refreshFiles }) {
   const [file, setFile] = useState(null);
@@ -35,7 +36,13 @@ export default function FileUpload({ refreshFiles }) {
   };
 
   return (
-    <div className="upload-card">
+    <motion.div
+      className="upload-card"
+      initial={{ opacity: 0, y: 20 }}       
+      animate={{ opacity: 1, y: 0 }}        
+      exit={{ opacity: 0, y: -20 }}         
+      transition={{ duration: 0.5, ease: "easeInOut" }}
+    >
       <h2 className="upload-title">Upload a File</h2>
       <form onSubmit={handleUpload} className="upload-form">
         <input
@@ -52,6 +59,6 @@ export default function FileUpload({ refreshFiles }) {
         </button>
       </form>
       {file && <p className="selected-file">📂 {file.name}</p>}
-    </div>
+    </motion.div>
   );
 }
