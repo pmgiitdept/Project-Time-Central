@@ -546,11 +546,11 @@ export default function AdminDashboard() {
       {/* Navbar */}
       <nav className="navbar">
         <div className="navbar-left">
-          <img src="/src/pmgi.png" alt="Logo Left" className="navbar-logo" />
+          <img src="/pmgi.png" alt="Logo Left" className="navbar-logo" />
           <h1 className="navbar-title">Admin Dashboard</h1>
         </div>
         <div className="navbar-right">
-          <img src="/src/sgslogos.png" alt="Logo Right" className="navbar-logo" />
+          <img src="/sgslogos.png" alt="Logo Right" className="navbar-logo" />
           <LogoutButton />
         </div>
       </nav>
