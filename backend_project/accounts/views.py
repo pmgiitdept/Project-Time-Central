@@ -171,15 +171,21 @@ def user_ping(request):
     user.save(update_fields=["last_seen", "is_online"])
     return Response({"status": "ok", "last_seen": user.last_seen})
 
-@csrf_exempt  # Needed if you access via browser without CSRF token
+@csrf_exempt
 def create_test_admin(request):
     User = get_user_model()
     username = "testadmin"
     email = "testadmin@example.com"
-    password = "TestAdmin123!"  # Change this if you like
+    password = "TestAdmin123!"
 
     if User.objects.filter(username=username).exists():
         return HttpResponse("Admin user already exists.")
 
-    User.objects.create_superuser(username=username, email=email, password=password)
+    User.objects.create_superuser(
+        username=username,
+        email=email,
+        password=password,
+        role=User.Roles.ADMIN  # explicitly set role
+    )
+
     return HttpResponse(f"Admin user '{username}' created successfully!")
