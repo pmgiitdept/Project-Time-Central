@@ -88,7 +88,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
 
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
     const wsHost = "project-time-central.onrender.com";
-    const wsUrl = `${wsScheme}://${wsHost}/ws/chat/${roomName}/?token=${currentUser.token}`;
+    const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/${roomName}/?token=${token}`;
 
     ws.current = new WebSocket(wsUrl);
 
