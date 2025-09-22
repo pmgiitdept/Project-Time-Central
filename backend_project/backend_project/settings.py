@@ -96,8 +96,10 @@ CHANNEL_LAYERS = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "https://project-time-central-1.onrender.com",  # frontend in Render
+    "https://project-time-central-1.onrender.com",  # frontend
+    "https://project-time-central.onrender.com",   # backend (self)
 ]
+
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
