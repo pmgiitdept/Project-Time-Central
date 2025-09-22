@@ -44,24 +44,28 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
   const fetchHistory = async () => {
     if (!currentUser?.token) return;
     setLoading(true);
-
+  
     try {
       let allMessages = [];
       let url = `/chat/messages/${roomName}/`;
-
+  
+      const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/";
+  
       while (url) {
         const res = await api.get(url, {
           headers: { Authorization: `Bearer ${currentUser.token}` },
         });
-
+  
         const data = res.data;
         allMessages = [...allMessages, ...data.results];
-        url = data.next ? data.next.replace(`${window.location.origin}/api`, "") : null;
+  
+        // Fix: normalize next page URL
+        url = data.next ? data.next.replace(API_BASE, "") : null;
       }
-
+  
       allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-      // console.log("Final merged history:", allMessages);
+  
+      console.log("Final merged history:", allMessages);
       setMessages(allMessages);
       localStorage.setItem(`chat-${roomName}`, JSON.stringify(allMessages));
       scrollToBottom("auto");
@@ -85,18 +89,20 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
 
   useEffect(() => {
     if (!currentUser?.token || ws.current) return;
-
+  
     const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsHost = "project-time-central.onrender.com";
-    const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/${roomName}/?token=${token}`;
-
+    const wsHost =
+      import.meta.env.VITE_WS_URL || "127.0.0.1:8000";
+  
+    const wsUrl = `${wsScheme}://${wsHost}/ws/chat/${roomName}/?token=${currentUser.token}`;
+  
     ws.current = new WebSocket(wsUrl);
-
+  
     ws.current.onopen = () => {
       setConnected(true);
-      // console.log("✅ Connected to chat");
+      console.log("✅ Connected to chat");
     };
-
+  
     ws.current.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
@@ -110,10 +116,10 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
         console.error("Failed to parse WS message:", err);
       }
     };
-
+  
     ws.current.onclose = () => setConnected(false);
     ws.current.onerror = (err) => console.error("WS Error:", err);
-
+  
     return () => {
       ws.current?.close();
       ws.current = null;
