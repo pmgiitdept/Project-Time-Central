@@ -1,12 +1,22 @@
-/* components/ChatSections.jsx */
+/* components/ChatSection.jsx */
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import EmojiPicker from "emoji-picker-react";
 import api from "../api"; 
 import "./styles/ChatSection.css"; 
 import ManageUsersModal from "./ManageUsersModal";
+import { getApiBase, getWsBase } from "../utils/hosts";   // ✅ import helpers
 
-export default function ChatSection({ currentUser, roomId, roomName, messages, setMessages, onNewMessage, users, roomCreatorId }) {
+export default function ChatSection({
+  currentUser,
+  roomId,
+  roomName,
+  messages,
+  setMessages,
+  onNewMessage,
+  users,
+  roomCreatorId
+}) {
   const [newMessage, setNewMessage] = useState("");
   const [connected, setConnected] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -17,7 +27,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
 
   const ws = useRef(null);
   const messagesEndRef = useRef(null);
-  
+
   const getOtherUserId = (roomName) => {
     if (!currentUser || !roomName) return null;
 
@@ -48,8 +58,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
     try {
       let allMessages = [];
       let url = `/chat/messages/${roomName}/`;
-  
-      const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/";
+      const API_BASE = getApiBase();   // ✅ use helper
   
       while (url) {
         const res = await api.get(url, {
@@ -59,7 +68,7 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
         const data = res.data;
         allMessages = [...allMessages, ...data.results];
   
-        // Fix: normalize next page URL
+        // ✅ normalize next page URL
         url = data.next ? data.next.replace(API_BASE, "") : null;
       }
   
@@ -90,11 +99,8 @@ export default function ChatSection({ currentUser, roomId, roomName, messages, s
   useEffect(() => {
     if (!currentUser?.token || ws.current) return;
   
-    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsHost =
-      import.meta.env.VITE_WS_URL || "127.0.0.1:8000";
-  
-    const wsUrl = `${wsScheme}://${wsHost}/ws/chat/${roomName}/?token=${currentUser.token}`;
+    const WS_BASE = getWsBase();   // ✅ use helper
+    const wsUrl = `${WS_BASE}/ws/chat/${roomName}/?token=${currentUser.token}`;
   
     ws.current = new WebSocket(wsUrl);
   
