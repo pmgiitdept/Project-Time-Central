@@ -89,11 +89,23 @@ WSGI_APPLICATION = 'backend_project.wsgi.application'
 
 ASGI_APPLICATION = "backend_project.asgi.application"
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
-    },
-}
+# CHANNELS (use Redis in production)
+if config("REDIS_URL", default=None):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [config("REDIS_URL")],
+            },
+        }
+    }
+else:
+    # fallback (single worker only)
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 CORS_ALLOWED_ORIGINS = [
     "https://project-time-central-1.onrender.com",  # frontend
@@ -105,16 +117,8 @@ CORS_ALLOWED_ORIGINS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
-
-if DATABASE_URL:
-    # Use external URL (local dev or testing)
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-    }
-else:
-    # Use Render internal DB (when deployed)
-    DATABASES = {
-    'default': dj_database_url.parse(os.environ.get('DATABASE_URL'), conn_max_age=600)
+DATABASES = {
+    "default": dj_database_url.config(conn_max_age=600, ssl_require=True)
 }
 
 REST_FRAMEWORK = {
@@ -176,6 +180,11 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Path to Poppler binaries (for pdf2image OCR)
 POPPLER_PATH = r"C:\poppler-25.07.0\Library\bin"
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # adjust if using another broker
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+REDIS_URL = config("REDIS_URL", default=None)
+if REDIS_URL:
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+    CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+else:
+    CELERY_BROKER_URL = None
+    CELERY_RESULT_BACKEND = None
