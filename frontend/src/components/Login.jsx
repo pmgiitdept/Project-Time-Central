@@ -87,7 +87,7 @@ export default function Login() {
       {/* Footer */}
       <footer className="login-footer">
         <div className="footer-left">
-          <p><MapPin size={16} /> 2F 37 Bayanri Road Build., #37 Bayani Road AFPOVAI, Fort Bonifacio, Western Bicutan, Taguig City</p>
+          <p><MapPin size={16} /> 2F 37 Bayani Road Build., #37 Bayani Road AFPOVAI, Fort Bonifacio, Western Bicutan, Taguig City</p>
           <p><Phone size={16} /> 856-3553 | 808-9424 | 808-9282</p>
           <p><Globe size={16} /> www.pmgi.com.ph</p>
         </div>
