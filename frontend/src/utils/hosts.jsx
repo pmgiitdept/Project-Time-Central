@@ -8,9 +8,6 @@ export function getApiBase() {
 // Normalize base WS URL
 export function getWsBase() {
   const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
-  const wsHost = import.meta.env.VITE_WS_URL; // e.g. project-time-central.onrender.com
-  const wsUrl = `${wsScheme}://${wsHost}/ws/chat/${roomName}/?token=${currentUser.token}`;
-
+  const wsHost = import.meta.env.VITE_WS_URL || "127.0.0.1:8000";
   return `${wsScheme}://${wsHost}`;
 }
-
