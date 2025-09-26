@@ -68,7 +68,7 @@ export default function ClientDashboard() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await api.get("/auth/users");
+        const res = await api.get("/auth/users/me/");
         setUsersList(res.data);
       } catch (err) {
         console.error("Failed to fetch users:", err);
