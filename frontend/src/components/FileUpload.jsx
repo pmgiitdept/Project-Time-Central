@@ -43,7 +43,7 @@ export default function FileUpload({ refreshFiles }) {
       exit={{ opacity: 0, y: -20 }}         
       transition={{ duration: 0.5, ease: "easeInOut" }}
     >
-      <h2 className="upload-title">Upload a File</h2>
+      <h2 className="upload-title">Upload DTR</h2>
       <form onSubmit={handleUpload} className="upload-form">
         <input
           type="file"
