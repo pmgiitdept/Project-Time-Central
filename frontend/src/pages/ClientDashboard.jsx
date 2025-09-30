@@ -107,11 +107,11 @@ export default function ClientDashboard() {
       {/* Navbar */}
       <nav className="dashboard-navbar">
         <div className="navbar-left">
-          <img src="/src/pmgi.png" alt="Logo" className="navbar-logo" />
+          <img src="pmgi.png" alt="Logo" className="navbar-logo" />
           <h1 className="dashboard-title">Client Dashboard</h1>
         </div>
         <div className="navbar-right">
-          <img src="/src/sgslogos.png" alt="Right Logo" className="navbar-logo" />
+          <img src="sgslogos.png" alt="Right Logo" className="navbar-logo" />
           <LogoutButton />
         </div>
       </nav>
