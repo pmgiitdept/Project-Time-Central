@@ -264,6 +264,7 @@ export default function OverallResultsTable({ role }) {
     // ---- DUTY (By Days) ----
     const dayWork = safeParse(r[2]); // WRK
     const absences = safeParse(r[3]); // ABS
+    const Holiday = safeParse(r[5]); // HOL
     const leave = safeParse(r[4]); // LV
     const dayOff = safeParse(r[6]); // RES
     const lates = safeParse(r[7]); // Late
@@ -315,6 +316,7 @@ export default function OverallResultsTable({ role }) {
       name: r[1],
       period: `${rowData.startDate} - ${rowData.endDate}`,
       total: dayWork + absences + leave + dayOff,
+      days: dayWork + Holiday,
       dayWork,
       specialHoliday,
       legalHoliday,
@@ -567,7 +569,7 @@ export default function OverallResultsTable({ role }) {
                         <td colSpan={2}>Total</td>
                       </tr>
                       {[
-                        ["Day Work", summary.dayWork],
+                        ["Day Work", summary.days],
                         ["Special Holiday", summary.specialHoliday],
                         ["Legal Holiday", summary.legalHoliday],
                         ["Leave", summary.leave],
