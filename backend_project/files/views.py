@@ -1,8 +1,8 @@
 #files/views.py
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from .models import File, AuditLog, SystemSettings
-from .serializers import FileSerializer, FileStatusSerializer, AuditLogSerializer, SystemSettingsSerializer
+from .models import File, AuditLog, SystemSettings, EmployeeDirectory, DTRFile, DTREntry
+from .serializers import FileSerializer, FileStatusSerializer, AuditLogSerializer, SystemSettingsSerializer, EmployeeDirectorySerializer, DTREntrySerializer, DTRFileSerializer
 from accounts.permissions import ReadOnlyForViewer, IsOwnerOrAdmin, CanEditStatus, IsAdmin
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -15,11 +15,14 @@ from accounts.models import User
 from reportlab.pdfgen import canvas
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
-from PIL import Image
-import numpy as np
 from .utils import log_action, get_client_ip
 from django.core.exceptions import ValidationError
 from .utils import send_rejection_sms 
+import pandas as pd
+import math
+from decimal import Decimal, InvalidOperation
+from datetime import timedelta
+import traceback
 
 def log_action(user, action, status="success", ip_address=None):
     AuditLog.objects.create(
@@ -314,7 +317,6 @@ class FileViewSet(viewsets.ModelViewSet):
         if not pages and not content:
             return Response({"detail": "No content provided"}, status=400)
 
-        # --- Flatten pages -> content for CSV/XLSX/images ---
         if pages and not content:
             content = []
             for page in pages:
@@ -341,7 +343,6 @@ class FileViewSet(viewsets.ModelViewSet):
 
         file_name = file_obj.file.name.lower()
 
-        # --- Helper to format numbers consistently ---
         def format_numeric(val):
             if val is None or val == "":
                 return "0.00"
@@ -398,7 +399,6 @@ class FileViewSet(viewsets.ModelViewSet):
                     y_offset = 750
                     page_has_content = False
 
-                    # Write text if present
                     if "text" in page and page["text"]:
                         p.setFont("Helvetica", 10)
                         for line in page["text"].splitlines():
@@ -410,7 +410,6 @@ class FileViewSet(viewsets.ModelViewSet):
                                 y_offset = 750
                         p.showPage()
 
-                    # Write tables if present
                     if "tables" in page and page["tables"]:
                         for table in page["tables"]:
                             main_headers = table.get("main_headers", [])
@@ -641,3 +640,369 @@ def rejected_files(request):
     files = File.objects.filter(owner=user, status="rejected").order_by("-uploaded_at")
     serializer = FileSerializer(files, many=True)
     return Response(serializer.data)
+
+def clean_value(value):
+    """Convert NaN or missing values to None for JSON storage."""
+    if pd.isna(value) or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return value
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def upload_employee_excel(request):
+    file = request.FILES.get('file')
+    if not file:
+        return Response({"detail": "No file uploaded."}, status=400)
+    
+    try:
+        df = pd.read_excel(file, header=0, dtype=str)
+        df.columns = [col.strip() for col in df.columns]  
+        df_cleaned = df.applymap(clean_value)
+
+        added_count = 0
+        updated_count = 0
+
+        def to_float(val):
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
+        for _, row in df_cleaned.iterrows():
+            employee_code_raw = row.get('Employee Code')
+            employee_code = str(employee_code_raw).strip().zfill(5) if employee_code_raw else ""
+
+            data = {
+                'employee_code': employee_code,
+                'employee_name': str(row.get('EmployeeName', '')).strip(),
+                'total_hours': to_float(row.get('Total Hours')),
+                'nd_reg_hrs': to_float(row.get('ND Reg Hrs')),
+                'absences': to_float(row.get('Absences')),
+                'tardiness': to_float(row.get('Tardiness')),
+                'undertime': to_float(row.get('Undertime')),
+                'ot_regular': to_float(row.get('OTRegular')),
+                'nd_ot_reg': to_float(row.get('ND OT Reg')),
+                'ot_restday': to_float(row.get('OT Restday')),
+                'nd_restday': to_float(row.get('ND Restday')),
+                'ot_rest_excess': to_float(row.get('OT RestExcess')),
+                'nd_rest_excess': to_float(row.get('ND Restday Excess')),
+                'ot_special_hday': to_float(row.get('OTSpecialHday')),
+                'nd_special_hday': to_float(row.get('ND SpecialHday')),
+                'ot_shday_excess': to_float(row.get('OT SHdayExcess')),
+                'nd_shday_excess': to_float(row.get('ND SHday Excess')),
+                'ot_legal_holiday': to_float(row.get('OT LegalHoliday')),
+                'special_holiday': to_float(row.get('Special Holiday')),
+                'ot_leghol_excess': to_float(row.get('OTLegHol Excess')),
+                'nd_leghol_excess': to_float(row.get('ND LegHol Excess')),
+                'ot_sh_on_rest': to_float(row.get('OT SHday on Rest')),
+                'nd_sh_on_rest': to_float(row.get('ND SH on Rest')),
+                'ot_sh_on_rest_excess': to_float(row.get('OT SH on Rest Excess')),
+                'nd_sh_on_rest_excess': to_float(row.get('ND SH on Rest Excess')),
+                'leg_h_on_rest_day': to_float(row.get('LegH on Rest Day')),
+                'nd_leg_h_on_restday': to_float(row.get('ND LegH on Restday')),
+                'ot_leg_h_on_rest_excess': to_float(row.get('OT LegH on Rest Excess')),
+                'nd_leg_h_on_rest_excess': to_float(row.get('ND LegH on Rest Excess')),
+                'vacleave_applied': to_float(row.get('VacLeave_Applied')),
+                'sickleave_applied': to_float(row.get('SickLeave_Applied')),
+                'back_pay_vl': to_float(row.get('Back Pay VL')),
+                'back_pay_sl': to_float(row.get('Back Pay SL')),
+                'ot_regular_excess': to_float(row.get('OTRegular Excess')),
+                'nd_ot_reg_excess': to_float(row.get('ND OT Reg Excess')),
+                'legal_holiday': to_float(row.get('Legal Holiday')),
+                'nd_legal_holiday': to_float(row.get('ND Legal Holiday')),
+                'overnight_rate': to_float(row.get('Overnight Rate')),
+                'project': str(row.get('PROJECT', '')).strip(),
+            }
+
+            if employee_code:
+                obj, created = EmployeeDirectory.objects.update_or_create(
+                    employee_code=employee_code,
+                    defaults=data
+                )
+                if created:
+                    added_count += 1
+                else:
+                    updated_count += 1
+            else:
+                obj = EmployeeDirectory.objects.filter(employee_name=data['employee_name'], employee_code="").first()
+                if obj:
+                    for key, value in data.items():
+                        setattr(obj, key, value)
+                    obj.save()
+                    updated_count += 1
+                else:
+                    EmployeeDirectory.objects.create(**data)
+                    added_count += 1
+
+        return Response({
+            "detail": f"{added_count} new employees added, {updated_count} employees updated."
+        })
+
+    except Exception as e:
+        return Response({"detail": str(e)}, status=400)
+    
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def list_employees(request):
+    employees = EmployeeDirectory.objects.all().order_by("id")
+    serializer = EmployeeDirectorySerializer(employees, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def add_employee(request):
+    employee_code = request.data.get("employee_code")
+    employee_name = request.data.get("employee_name")
+
+    if not employee_code or not employee_name:
+        return Response({"detail": "Employee code and name are required."}, status=400)
+
+    employee_code = str(employee_code).strip().zfill(5)
+    employee_name = employee_name.strip()
+
+    obj, created = EmployeeDirectory.objects.get_or_create(
+        employee_code=employee_code,
+        defaults={"employee_name": employee_name}
+    )
+
+    if not created:
+        return Response({"detail": "Employee already exists."}, status=400)
+
+    return Response({"detail": "Employee added successfully!"})
+
+@api_view(['DELETE'])
+@permission_classes([IsAdminUser])
+def delete_employee(request, employee_code):
+    employee_code_str = str(employee_code)
+    padded_code = employee_code_str.zfill(5)
+
+    try:
+        employee = EmployeeDirectory.objects.get(
+            Q(employee_code=padded_code) | Q(employee_code=employee_code_str)
+        )
+        employee.delete()
+        return Response({"detail": "Employee deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    except EmployeeDirectory.DoesNotExist:
+        return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['PUT'])
+@permission_classes([IsAdminUser])
+def update_employee(request, employee_code):
+    employee_code_str = str(employee_code)
+    padded_code = employee_code_str.zfill(5)
+    
+    try:
+        employee = EmployeeDirectory.objects.get(
+            Q(employee_code=padded_code) | Q(employee_code=employee_code_str)
+        )
+    except EmployeeDirectory.DoesNotExist:
+        return Response({"detail": "Employee not found"}, status=404)
+
+    numeric_fields = [
+        "total_hours", "nd_reg_hrs", "absences", "tardiness", "undertime",
+        "ot_regular", "nd_ot_reg", "ot_restday", "nd_restday", "ot_rest_excess",
+        "nd_rest_excess", "ot_special_hday", "nd_special_hday", "ot_shday_excess",
+        "nd_shday_excess", "ot_legal_holiday", "special_holiday", "ot_leghol_excess",
+        "nd_leghol_excess", "ot_sh_on_rest", "nd_sh_on_rest", "ot_sh_on_rest_excess",
+        "nd_sh_on_rest_excess", "leg_h_on_rest_day", "nd_leg_h_on_restday",
+        "ot_leg_h_on_rest_excess", "nd_leg_h_on_rest_excess", "vacleave_applied",
+        "sickleave_applied", "back_pay_vl", "back_pay_sl", "ot_regular_excess",
+        "nd_ot_reg_excess", "legal_holiday", "nd_legal_holiday", "overnight_rate",
+    ]
+
+    for field, value in request.data.items():
+        if hasattr(employee, field):
+            if field in numeric_fields:
+                if value in ["", None]:
+                    setattr(employee, field, None)
+                else:
+                    try:
+                        setattr(employee, field, Decimal(value))
+                    except InvalidOperation:
+                        setattr(employee, field, None)
+            else:
+                setattr(employee, field, value)
+
+    employee.save()
+    return Response({"detail": "Employee updated successfully"})
+
+def safe_number(val, default=0):
+    """Convert pandas/Excel values into a safe float or default."""
+    if pd.isna(val):
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def safe_string(val):
+    """Convert to string if not NaN, else return None."""
+    if pd.isna(val):
+        return None
+    return str(val).strip()
+
+class DTRFileViewSet(viewsets.ModelViewSet):
+    queryset = DTRFile.objects.all().order_by("-uploaded_at")
+    serializer_class = DTRFileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def parse(self, request, pk=None):
+        dtr_file = self.get_object()
+        file_path = dtr_file.file.path
+        dtr_file.entries.all().delete() 
+
+        try:
+            df = pd.read_excel(file_path, header=None)
+
+            start_date_val = df.iat[8, 4] if not pd.isna(df.iat[8, 4]) else None
+            end_date_val = df.iat[9, 4] if not pd.isna(df.iat[9, 4]) else None
+
+            dtr_file.start_date = pd.to_datetime(start_date_val).date() if start_date_val else None
+            dtr_file.end_date = pd.to_datetime(end_date_val).date() if end_date_val else None
+            dtr_file.save()
+
+            employee_df = df.iloc[13:, :]
+
+            for _, row in employee_df.iterrows():
+                name = row[2]
+                emp_no = row[4]
+
+                if pd.isna(name) or pd.isna(emp_no):
+                    continue
+                try:
+                    code = str(int(emp_no)).zfill(5)
+                except (ValueError, TypeError):
+                    continue  
+
+                daily_data = {}
+                if dtr_file.start_date:
+                    for idx, col in enumerate(range(8, 24)):
+                        day = dtr_file.start_date + timedelta(days=idx)
+                        val = row[col]
+                        daily_data[str(day)] = None if pd.isna(val) else val
+
+                DTREntry.objects.create(
+                    dtr_file=dtr_file,
+                    full_name=safe_string(name),
+                    employee_no=code,
+                    area=safe_string(row[5]),
+                    daily_data=daily_data,
+                    total_days=safe_number(row[24]),
+                    total_hours=safe_number(row[25]),
+                    undertime_minutes=safe_number(row[26]),
+                    regular_ot=safe_number(row[27]),
+                    legal_holiday=safe_number(row[28]),
+                    unworked_reg_holiday=safe_number(row[29]),
+                    special_holiday=safe_number(row[30]),
+                    night_diff=safe_number(row[31]),
+                )
+
+            return Response({"message": "DTR file parsed successfully."})
+
+        except Exception as e:
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["get"])
+    def content(self, request, pk=None):
+        dtr_file = self.get_object()
+        entries = dtr_file.entries.all()
+        serializer = DTREntrySerializer(entries, many=True)
+        return Response({
+            "start_date": dtr_file.start_date,
+            "end_date": dtr_file.end_date,
+            "rows": serializer.data
+        })
+    
+    @action(detail=False, methods=["post"], url_path="sync-all")
+    def sync_all_files(self, request):
+        """
+        Sync all DTR entries to EmployeeDirectory.
+        Optional request data:
+            start_date, end_date -> filter which DTR files to consider
+        """
+        start_date_str = request.data.get("start_date")
+        end_date_str = request.data.get("end_date")
+
+        start_date = pd.to_datetime(start_date_str).date() if start_date_str else None
+        end_date = pd.to_datetime(end_date_str).date() if end_date_str else None
+
+        dtr_files = DTRFile.objects.all().order_by("start_date")
+        if start_date:
+            dtr_files = dtr_files.filter(end_date__gte=start_date)
+        if end_date:
+            dtr_files = dtr_files.filter(start_date__lte=end_date)
+
+        aggregated = {}
+
+        for dtr_file in dtr_files:
+            for entry in dtr_file.entries.all():
+                code = str(entry.employee_no).zfill(5) if entry.employee_no else None
+                name = entry.full_name.strip() if entry.full_name else None
+                if not code or not name:
+                    continue
+
+                if code not in aggregated:
+                    aggregated[code] = {
+                        "employee_name": name,
+                        "total_hours": 0,
+                        "undertime": 0,
+                        "ot_regular": 0,
+                        "legal_holiday": 0,
+                        "special_holiday": 0,
+                        "nd_reg_hrs": 0,
+                        "date_covered_start": dtr_file.start_date,
+                        "date_covered_end": dtr_file.end_date,
+                    }
+
+                aggregated[code]["total_hours"] += entry.total_hours or 0
+                aggregated[code]["undertime"] += entry.undertime_minutes or 0
+                aggregated[code]["ot_regular"] += entry.regular_ot or 0
+                aggregated[code]["legal_holiday"] += entry.legal_holiday or 0
+                aggregated[code]["special_holiday"] += entry.special_holiday or 0
+                aggregated[code]["nd_reg_hrs"] += entry.night_diff or 0
+
+                if dtr_file.start_date and (
+                    aggregated[code]["date_covered_start"] is None
+                    or dtr_file.start_date < aggregated[code]["date_covered_start"]
+                ):
+                    aggregated[code]["date_covered_start"] = dtr_file.start_date
+
+                if dtr_file.end_date and (
+                    aggregated[code]["date_covered_end"] is None
+                    or dtr_file.end_date > aggregated[code]["date_covered_end"]
+                ):
+                    aggregated[code]["date_covered_end"] = dtr_file.end_date
+
+        created, updated = 0, 0
+        for code, data in aggregated.items():
+            date_covered = None
+            if data.get("date_covered_start") and data.get("date_covered_end"):
+                start_str = data["date_covered_start"].strftime("%b %d, %Y")
+                end_str = data["date_covered_end"].strftime("%b %d, %Y")
+                date_covered = f"{start_str} → {end_str}"
+
+            emp, is_created = EmployeeDirectory.objects.update_or_create(
+                employee_code=code,
+                defaults={
+                    **{k: v for k, v in data.items() if k not in ["date_covered_start", "date_covered_end"]},
+                    "date_covered": date_covered,
+                },
+            )
+            if is_created:
+                created += 1
+            else:
+                updated += 1
+
+        return Response({
+            "detail": f"All DTR files synced: {created} new, {updated} updated."
+        })
+
+class DTREntryViewSet(viewsets.ModelViewSet):
+    queryset = DTREntry.objects.all().order_by("full_name")
+    serializer_class = DTREntrySerializer
+    permission_classes = [IsAuthenticated]
