@@ -315,12 +315,12 @@
 .manage-users-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;                    /* space between icon and text */
+  gap: 6px;                  
   padding: 8px 16px;
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(135deg, #4f46e5, #3b82f6); /* gradient button */
+  background: linear-gradient(135deg, #4f46e5, #3b82f6); 
   border: none;
   border-radius: 8px;
   cursor: pointer;
