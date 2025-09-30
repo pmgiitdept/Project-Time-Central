@@ -1,0 +1,13 @@
+/* styles/UploadSection.css */
+.upload-section {
+  display: flex;
+  gap: 2rem;       
+  justify-content: flex-start;
+  align-items: flex-start;
+  flex-wrap: wrap;   
+}
+
+.upload-card {
+  flex: 1;
+  min-width: 300px;  
+}
