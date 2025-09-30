@@ -381,7 +381,6 @@
   transform: rotate(360deg);
 }
 
-
 .btn-refresh:disabled {
   opacity: 0.7;
   cursor: not-allowed;
