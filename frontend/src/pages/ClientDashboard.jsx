@@ -1,17 +1,17 @@
 // pages/ClientDashboard.jsx
 import { useState, useEffect, useContext, useRef } from "react";
 import FileTable from "../components/FileTable";
-import FileUpload from "../components/FileUpload";
 import LogoutButton from "../components/LogoutButton";
 import ChatSection from "../components/ChatSections"; 
 import UserList from "../components/UserLists"; 
 import RoomList from "../components/RoomList"; 
+import DTRTable from "../components/DTRTable";
+import UploadSection from "../components/UploadSection";
 import "../components/styles/ClientDashboard.css";
 import api from "../api";
 import { AuthContext } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { UserPlus, UserMinus, PlusCircle, MinusCircle } from "lucide-react";
-
 
 export default function ClientDashboard() {
   const { currentUser, setCurrentUser } = useContext(AuthContext);
@@ -68,7 +68,7 @@ export default function ClientDashboard() {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await api.get("/auth/users/me/");
+        const res = await api.get("/auth/users");
         setUsersList(res.data);
       } catch (err) {
         console.error("Failed to fetch users:", err);
@@ -107,11 +107,11 @@ export default function ClientDashboard() {
       {/* Navbar */}
       <nav className="dashboard-navbar">
         <div className="navbar-left">
-          <img src="/pmgi.png" alt="Logo" className="navbar-logo" />
+          <img src="/src/pmgi.png" alt="Logo" className="navbar-logo" />
           <h1 className="dashboard-title">Client Dashboard</h1>
         </div>
         <div className="navbar-right">
-          <img src="/sgslogos.png" alt="Right Logo" className="navbar-logo" />
+          <img src="/src/sgslogos.png" alt="Right Logo" className="navbar-logo" />
           <LogoutButton />
         </div>
       </nav>
@@ -125,8 +125,13 @@ export default function ClientDashboard() {
       >
         {/* Centered Left Panel */}
         <div className="left-panel">
-          <FileUpload refreshFiles={refreshFiles} />
+          <UploadSection
+            refreshFiles={refreshFiles}
+            refreshDTR={() => setRefresh(!refresh)}
+          />
+
           <FileTable role="client" key={refresh} />
+          <DTRTable />
         </div>
 
         {/* Floating Chat + Users List */}
@@ -218,11 +223,10 @@ export default function ClientDashboard() {
                               onSelectRoom={(room) => {
                                 setSelectedRoom(room);
                                 setRoomName(room.name); 
-                                // Load cached messages if available
                                 if (roomMessagesCache.current[room.id]) {
                                   setMessages(roomMessagesCache.current[room.id]);
                                 } else {
-                                  setMessages([]); // first time
+                                  setMessages([]);
                                 }
                                 setHasUnread(false);
                                 setUnreadCounts(prev => {
@@ -256,11 +260,10 @@ export default function ClientDashboard() {
                               onSelectRoom={(room) => {
                                 setSelectedRoom(room);
                                 setRoomName(room.name);
-                                // Load cached messages if available
                                 if (roomMessagesCache.current[room.id]) {
                                   setMessages(roomMessagesCache.current[room.id]);
                                 } else {
-                                  setMessages([]); // first time
+                                  setMessages([]); 
                                 }
                                 setHasUnread(false);
                                 setUnreadCounts(prev => {
